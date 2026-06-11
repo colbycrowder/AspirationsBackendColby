@@ -78,6 +78,8 @@ The youth Programs page connects to active-program listing and youth
 self-enrollment endpoints.
 The youth Credentials page uses the dashboard response to show earned and
 available credentials.
+The youth Service Hours page uses the dashboard response to show records,
+status totals, and the configured request form URL.
 
 Staff/admin pages do not connect to backend APIs yet, and the app does not
 perform role-based staff/admin authorization yet.
@@ -142,6 +144,27 @@ To test locally:
 
 If the user has no earned credentials or no available credentials for enrolled
 programs, the page shows safe empty states.
+
+## Local Service Hours Test
+
+The Service Hours page uses:
+
+```text
+GET /api/me/dashboard
+Authorization: Bearer <Firebase ID token>
+```
+
+To test locally:
+
+1. Start the backend with `./gradlew bootRun` from `../UserData`.
+2. Start the frontend with `npm run dev`.
+3. Sign in with Firebase.
+4. Confirm the signed-in Firebase UID has a matching Firestore profile document.
+5. Open `Service Hours`.
+6. Confirm submitted service-hour records, status totals, and the request form link render from the dashboard response.
+
+Youth service-hour submission is not currently exposed as a backend youth route.
+The page links to the configured request form URL when staff/admin has set one.
 
 ## Local Programs and Enrollment Test
 

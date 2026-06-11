@@ -369,6 +369,11 @@ h3 {
   gap: 18px;
 }
 
+.service-hours-stack {
+  display: grid;
+  gap: 18px;
+}
+
 .credential-summary-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -561,6 +566,54 @@ h3 {
   color: #526477;
   background: #eef4f8;
   border-color: #d7e2ea;
+}
+
+.status-tag.danger {
+  color: #8a1f2d;
+  background: #fae8eb;
+  border-color: #efbdc5;
+}
+
+.link-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
+.service-record-list {
+  display: grid;
+  gap: 12px;
+}
+
+.service-record {
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+  background: #f8fafc;
+  border: 1px solid #dfe7ef;
+  border-radius: 8px;
+}
+
+.service-record-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.service-record-header div {
+  display: grid;
+  gap: 4px;
+}
+
+.service-record-header strong {
+  color: #1c2430;
+}
+
+.service-record-header span {
+  color: #607386;
 }
 
 .message-panel {
