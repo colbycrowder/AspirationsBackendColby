@@ -1,0 +1,376 @@
+package com.AspirationsNetwork.UserData.Service;
+
+import com.AspirationsNetwork.UserData.DTO.AwardCredentialDTO;
+import com.AspirationsNetwork.UserData.DTO.AvailableCredentialDTO;
+import com.AspirationsNetwork.UserData.DTO.CredentialDefinitionCreationDTO;
+import com.AspirationsNetwork.UserData.DTO.EarnedCredentialDisplayDTO;
+import com.AspirationsNetwork.UserData.Models.CredentialDefinition;
+import com.AspirationsNetwork.UserData.Models.CredentialRequirement;
+import com.AspirationsNetwork.UserData.Models.EarnedCredential;
+import com.google.api.core.ApiFuture;
+import com.google.cloud.firestore.CollectionReference;
+import com.google.cloud.firestore.DocumentReference;
+import com.google.cloud.firestore.DocumentSnapshot;
+import com.google.cloud.firestore.Firestore;
+import com.google.cloud.firestore.Query;
+import com.google.cloud.firestore.QueryDocumentSnapshot;
+import com.google.cloud.firestore.QuerySnapshot;
+import com.google.cloud.firestore.WriteResult;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+
+import java.util.Date;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+class CredentialServiceTest {
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void createCredentialDefinitionStoresStaffProvidedDefinitionWithoutCatalogContent() throws Exception {
+        Firestore firestore = mock(Firestore.class);
+        CollectionReference definitionsCollection = mock(CollectionReference.class);
+        DocumentReference definitionDocument = mock(DocumentReference.class);
+        ApiFuture<WriteResult> writeFuture = mock(ApiFuture.class);
+
+        when(firestore.collection(CredentialService.CREDENTIAL_DEFINITIONS_COLLECTION)).thenReturn(definitionsCollection);
+        when(definitionsCollection.document(any(String.class))).thenReturn(definitionDocument);
+        when(definitionDocument.set(any(CredentialDefinition.class))).thenReturn(writeFuture);
+        when(writeFuture.get()).thenReturn(mock(WriteResult.class));
+
+        CredentialDefinitionCreationDTO dto = new CredentialDefinitionCreationDTO();
+        dto.setCredentialName("Staff provided name");
+        dto.setDescription("Staff provided description");
+        dto.setIcon("");
+        dto.setCategory("staff-provided-category");
+        dto.setActive(true);
+        dto.setProgramIds(List.of("program-123"));
+        CredentialRequirement requirement = new CredentialRequirement();
+        requirement.setRequirementType("manual_award");
+        requirement.setRequirementText("Staff review required");
+        dto.setRequirements(List.of(requirement));
+        dto.setRequirementText("Complete staff review.");
+        dto.setAutoAwardEnabled(true);
+        dto.setRequirementType("attendance_count");
+        dto.setRequiredAttendanceCount(3);
+        dto.setCreatedByStaffUID("staff-123");
+
+        CredentialService service = new CredentialService(firestore, mock(NotificationService.class));
+        String credentialID = service.createCredentialDefinition(dto);
+
+        ArgumentCaptor<CredentialDefinition> definitionCaptor = ArgumentCaptor.forClass(CredentialDefinition.class);
+        verify(definitionDocument).set(definitionCaptor.capture());
+
+        CredentialDefinition savedDefinition = definitionCaptor.getValue();
+        assertEquals(credentialID, savedDefinition.getCredentialID());
+        assertEquals("Staff provided name", savedDefinition.getCredentialName());
+        assertEquals("Staff provided description", savedDefinition.getDescription());
+        assertEquals("default-credential", savedDefinition.getIcon());
+        assertEquals("staff-provided-category", savedDefinition.getCategory());
+        assertEquals(List.of("program-123"), savedDefinition.getProgramIds());
+        assertEquals("manual_award", savedDefinition.getRequirements().get(0).getRequirementType());
+        assertEquals("Complete staff review.", savedDefinition.getRequirementText());
+        assertTrue(savedDefinition.isAutoAwardEnabled());
+        assertEquals("attendance_count", savedDefinition.getRequirementType());
+        assertEquals(3, savedDefinition.getRequiredAttendanceCount());
+        assertEquals("staff-123", savedDefinition.getCreatedByStaffUID());
+        assertTrue(savedDefinition.isActive());
+    }
+
+    @Test
+    void createCredentialDefinitionRequiresStaffUid() {
+        CredentialService service = new CredentialService(mock(Firestore.class), mock(NotificationService.class));
+        CredentialDefinitionCreationDTO dto = new CredentialDefinitionCreationDTO();
+
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> service.createCredentialDefinition(dto)
+        );
+
+        assertEquals("createdByStaffUID is required", exception.getMessage());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void awardCredentialStoresEarnedCredentialAndAssociatesItWithUserProfile() throws Exception {
+        Firestore firestore = mock(Firestore.class);
+        CollectionReference definitionsCollection = mock(CollectionReference.class);
+        CollectionReference usersCollection = mock(CollectionReference.class);
+        CollectionReference earnedCollection = mock(CollectionReference.class);
+        DocumentReference definitionDocument = mock(DocumentReference.class);
+        DocumentReference userDocument = mock(DocumentReference.class);
+        DocumentReference earnedDocument = mock(DocumentReference.class);
+        DocumentSnapshot definitionSnapshot = mock(DocumentSnapshot.class);
+        DocumentSnapshot userSnapshot = mock(DocumentSnapshot.class);
+        ApiFuture<DocumentSnapshot> definitionFuture = mock(ApiFuture.class);
+        ApiFuture<DocumentSnapshot> userFuture = mock(ApiFuture.class);
+        ApiFuture<WriteResult> writeFuture = mock(ApiFuture.class);
+        ApiFuture<WriteResult> updateFuture = mock(ApiFuture.class);
+        NotificationService notificationService = mock(NotificationService.class);
+
+        when(firestore.collection(CredentialService.CREDENTIAL_DEFINITIONS_COLLECTION)).thenReturn(definitionsCollection);
+        when(firestore.collection(UserInfoService.COLLECTION_NAME)).thenReturn(usersCollection);
+        when(firestore.collection(CredentialService.EARNED_CREDENTIALS_COLLECTION)).thenReturn(earnedCollection);
+        when(definitionsCollection.document("credential-123")).thenReturn(definitionDocument);
+        when(usersCollection.document("user-123")).thenReturn(userDocument);
+        when(earnedCollection.document(any(String.class))).thenReturn(earnedDocument);
+        when(definitionDocument.get()).thenReturn(definitionFuture);
+        when(userDocument.get()).thenReturn(userFuture);
+        when(definitionFuture.get()).thenReturn(definitionSnapshot);
+        when(userFuture.get()).thenReturn(userSnapshot);
+        when(definitionSnapshot.exists()).thenReturn(true);
+        when(definitionSnapshot.getBoolean("active")).thenReturn(true);
+        when(userSnapshot.exists()).thenReturn(true);
+        when(earnedDocument.set(any(EarnedCredential.class))).thenReturn(writeFuture);
+        when(userDocument.update(eq("earnedCredentialIds"), any())).thenReturn(updateFuture);
+        when(writeFuture.get()).thenReturn(mock(WriteResult.class));
+        when(updateFuture.get()).thenReturn(mock(WriteResult.class));
+
+        AwardCredentialDTO dto = new AwardCredentialDTO();
+        dto.setCredentialID("credential-123");
+        dto.setUserUID("user-123");
+        dto.setAwardedByStaffUID("staff-123");
+
+        CredentialService service = new CredentialService(firestore, notificationService);
+        String earnedCredentialID = service.awardCredentialToYouth(dto);
+
+        ArgumentCaptor<EarnedCredential> earnedCaptor = ArgumentCaptor.forClass(EarnedCredential.class);
+        verify(earnedDocument).set(earnedCaptor.capture());
+        verify(userDocument).update(eq("earnedCredentialIds"), any());
+        verify(notificationService).createCredentialEarnedNotification(
+                "user-123",
+                "credential-123",
+                earnedCredentialID
+        );
+
+        EarnedCredential savedEarnedCredential = earnedCaptor.getValue();
+        assertEquals(earnedCredentialID, savedEarnedCredential.getEarnedCredentialID());
+        assertEquals("credential-123", savedEarnedCredential.getCredentialID());
+        assertEquals("user-123", savedEarnedCredential.getUserUID());
+        assertEquals("staff-123", savedEarnedCredential.getAwardedByStaffUID());
+        assertEquals("awarded", savedEarnedCredential.getStatus());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void getEarnedCredentialsForUserIncludesCredentialDefinitionDisplayDetails() throws Exception {
+        Firestore firestore = mock(Firestore.class);
+        CollectionReference earnedCollection = mock(CollectionReference.class);
+        CollectionReference definitionsCollection = mock(CollectionReference.class);
+        QueryDocumentSnapshot earnedDocument = mock(QueryDocumentSnapshot.class);
+        QuerySnapshot earnedSnapshot = mock(QuerySnapshot.class);
+        DocumentReference definitionDocument = mock(DocumentReference.class);
+        DocumentSnapshot definitionSnapshot = mock(DocumentSnapshot.class);
+        ApiFuture<QuerySnapshot> earnedFuture = mock(ApiFuture.class);
+        ApiFuture<DocumentSnapshot> definitionFuture = mock(ApiFuture.class);
+        Date awardedAt = new Date();
+
+        EarnedCredential earnedCredential = new EarnedCredential();
+        earnedCredential.setEarnedCredentialID("earned-123");
+        earnedCredential.setCredentialID("credential-123");
+        earnedCredential.setUserUID("user-123");
+        earnedCredential.setStatus("awarded");
+        earnedCredential.setAwardedAt(awardedAt);
+
+        CredentialDefinition definition = new CredentialDefinition();
+        definition.setCredentialID("credential-123");
+        definition.setCredentialName("Staff configured name");
+        definition.setDescription("Staff configured description");
+        definition.setIcon("staff-icon");
+        definition.setCategory("staff-category");
+
+        when(firestore.collection(CredentialService.EARNED_CREDENTIALS_COLLECTION)).thenReturn(earnedCollection);
+        when(firestore.collection(CredentialService.CREDENTIAL_DEFINITIONS_COLLECTION)).thenReturn(definitionsCollection);
+        when(earnedCollection.whereEqualTo("userUID", "user-123")).thenReturn(earnedCollection);
+        when(earnedCollection.get()).thenReturn(earnedFuture);
+        when(earnedFuture.get()).thenReturn(earnedSnapshot);
+        when(earnedSnapshot.getDocuments()).thenReturn(List.of(earnedDocument));
+        when(earnedDocument.toObject(EarnedCredential.class)).thenReturn(earnedCredential);
+        when(definitionsCollection.document("credential-123")).thenReturn(definitionDocument);
+        when(definitionDocument.get()).thenReturn(definitionFuture);
+        when(definitionFuture.get()).thenReturn(definitionSnapshot);
+        when(definitionSnapshot.exists()).thenReturn(true);
+        when(definitionSnapshot.toObject(CredentialDefinition.class)).thenReturn(definition);
+
+        CredentialService service = new CredentialService(firestore, mock(NotificationService.class));
+        List<EarnedCredentialDisplayDTO> credentials = service.getEarnedCredentialsForUser("user-123");
+
+        assertEquals(1, credentials.size());
+        EarnedCredentialDisplayDTO credential = credentials.get(0);
+        assertEquals("earned-123", credential.getEarnedCredentialID());
+        assertEquals("credential-123", credential.getCredentialID());
+        assertEquals("Staff configured name", credential.getCredentialName());
+        assertEquals("Staff configured description", credential.getDescription());
+        assertEquals("staff-icon", credential.getIcon());
+        assertEquals("staff-category", credential.getCategory());
+        assertEquals("awarded", credential.getStatus());
+        assertEquals(awardedAt, credential.getAwardedAt());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void getAvailableCredentialsForProgramsReturnsRelevantNotYetEarnedCredentials() throws Exception {
+        Firestore firestore = mock(Firestore.class);
+        CollectionReference earnedCollection = mock(CollectionReference.class);
+        CollectionReference definitionsCollection = mock(CollectionReference.class);
+        Query activeDefinitionsQuery = mock(Query.class);
+        Query programDefinitionsQuery = mock(Query.class);
+        QueryDocumentSnapshot earnedDocument = mock(QueryDocumentSnapshot.class);
+        QueryDocumentSnapshot availableDefinitionDocument = mock(QueryDocumentSnapshot.class);
+        QueryDocumentSnapshot earnedDefinitionDocument = mock(QueryDocumentSnapshot.class);
+        QuerySnapshot earnedSnapshot = mock(QuerySnapshot.class);
+        QuerySnapshot definitionSnapshot = mock(QuerySnapshot.class);
+        ApiFuture<QuerySnapshot> earnedFuture = mock(ApiFuture.class);
+        ApiFuture<QuerySnapshot> definitionFuture = mock(ApiFuture.class);
+
+        EarnedCredential earnedCredential = new EarnedCredential();
+        earnedCredential.setCredentialID("credential-earned");
+
+        CredentialDefinition availableDefinition = new CredentialDefinition();
+        availableDefinition.setCredentialID("credential-available");
+        availableDefinition.setCredentialName("Available Credential");
+        availableDefinition.setDescription("Visible to enrolled youth");
+        availableDefinition.setIcon("");
+        availableDefinition.setCategory("program");
+        availableDefinition.setActive(true);
+        availableDefinition.setProgramIds(List.of("program-123"));
+        availableDefinition.setRequirementText("Attend one session.");
+
+        CredentialDefinition earnedDefinition = new CredentialDefinition();
+        earnedDefinition.setCredentialID("credential-earned");
+
+        when(firestore.collection(CredentialService.EARNED_CREDENTIALS_COLLECTION)).thenReturn(earnedCollection);
+        when(firestore.collection(CredentialService.CREDENTIAL_DEFINITIONS_COLLECTION)).thenReturn(definitionsCollection);
+        when(earnedCollection.whereEqualTo("userUID", "youth-123")).thenReturn(earnedCollection);
+        when(earnedCollection.get()).thenReturn(earnedFuture);
+        when(earnedFuture.get()).thenReturn(earnedSnapshot);
+        when(earnedSnapshot.getDocuments()).thenReturn(List.of(earnedDocument));
+        when(earnedDocument.toObject(EarnedCredential.class)).thenReturn(earnedCredential);
+        when(definitionsCollection.whereEqualTo("active", true)).thenReturn(activeDefinitionsQuery);
+        when(activeDefinitionsQuery.whereArrayContainsAny("programIds", List.of("program-123")))
+                .thenReturn(programDefinitionsQuery);
+        when(programDefinitionsQuery.get()).thenReturn(definitionFuture);
+        when(definitionFuture.get()).thenReturn(definitionSnapshot);
+        when(definitionSnapshot.getDocuments()).thenReturn(List.of(availableDefinitionDocument, earnedDefinitionDocument));
+        when(availableDefinitionDocument.toObject(CredentialDefinition.class)).thenReturn(availableDefinition);
+        when(earnedDefinitionDocument.toObject(CredentialDefinition.class)).thenReturn(earnedDefinition);
+
+        CredentialService service = new CredentialService(firestore, mock(NotificationService.class));
+        List<AvailableCredentialDTO> credentials = service.getAvailableCredentialsForPrograms(
+                "youth-123",
+                List.of("program-123")
+        );
+
+        assertEquals(1, credentials.size());
+        AvailableCredentialDTO credential = credentials.get(0);
+        assertEquals("credential-available", credential.getCredentialID());
+        assertEquals("Available Credential", credential.getCredentialName());
+        assertEquals("default-credential", credential.getIcon());
+        assertEquals("Attend one session.", credential.getRequirementText());
+        assertEquals("locked", credential.getStatus());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void evaluateAttendanceAutoAwardsCreatesEarnedCredentialWhenAttendanceCountIsMet() throws Exception {
+        Firestore firestore = mock(Firestore.class);
+        CollectionReference definitionsCollection = mock(CollectionReference.class);
+        CollectionReference attendanceCollection = mock(CollectionReference.class);
+        CollectionReference earnedCollection = mock(CollectionReference.class);
+        CollectionReference usersCollection = mock(CollectionReference.class);
+        Query activeDefinitionQuery = mock(Query.class);
+        Query autoAwardDefinitionQuery = mock(Query.class);
+        Query requirementTypeDefinitionQuery = mock(Query.class);
+        Query programDefinitionQuery = mock(Query.class);
+        Query attendanceUserQuery = mock(Query.class);
+        Query attendanceProgramQuery = mock(Query.class);
+        Query attendancePresentQuery = mock(Query.class);
+        Query earnedUserQuery = mock(Query.class);
+        Query earnedCredentialQuery = mock(Query.class);
+        QuerySnapshot definitionSnapshot = mock(QuerySnapshot.class);
+        QuerySnapshot attendanceSnapshot = mock(QuerySnapshot.class);
+        QuerySnapshot earnedLookupSnapshot = mock(QuerySnapshot.class);
+        QueryDocumentSnapshot definitionDocument = mock(QueryDocumentSnapshot.class);
+        QueryDocumentSnapshot attendanceDocumentOne = mock(QueryDocumentSnapshot.class);
+        QueryDocumentSnapshot attendanceDocumentTwo = mock(QueryDocumentSnapshot.class);
+        DocumentReference earnedDocument = mock(DocumentReference.class);
+        DocumentReference userDocument = mock(DocumentReference.class);
+        ApiFuture<QuerySnapshot> definitionFuture = mock(ApiFuture.class);
+        ApiFuture<QuerySnapshot> attendanceFuture = mock(ApiFuture.class);
+        ApiFuture<QuerySnapshot> earnedLookupFuture = mock(ApiFuture.class);
+        ApiFuture<WriteResult> earnedWriteFuture = mock(ApiFuture.class);
+        ApiFuture<WriteResult> userUpdateFuture = mock(ApiFuture.class);
+        NotificationService notificationService = mock(NotificationService.class);
+
+        CredentialDefinition definition = new CredentialDefinition();
+        definition.setCredentialID("credential-123");
+        definition.setActive(true);
+        definition.setAutoAwardEnabled(true);
+        definition.setRequirementType("attendance_count");
+        definition.setRequiredAttendanceCount(2);
+        definition.setProgramIds(List.of("program-123"));
+
+        when(firestore.collection(CredentialService.CREDENTIAL_DEFINITIONS_COLLECTION)).thenReturn(definitionsCollection);
+        when(firestore.collection(AttendanceService.COLLECTION_NAME)).thenReturn(attendanceCollection);
+        when(firestore.collection(CredentialService.EARNED_CREDENTIALS_COLLECTION)).thenReturn(earnedCollection);
+        when(firestore.collection(UserInfoService.COLLECTION_NAME)).thenReturn(usersCollection);
+        when(definitionsCollection.whereEqualTo("active", true)).thenReturn(activeDefinitionQuery);
+        when(activeDefinitionQuery.whereEqualTo("autoAwardEnabled", true)).thenReturn(autoAwardDefinitionQuery);
+        when(autoAwardDefinitionQuery.whereEqualTo("requirementType", "attendance_count"))
+                .thenReturn(requirementTypeDefinitionQuery);
+        when(requirementTypeDefinitionQuery.whereArrayContains("programIds", "program-123"))
+                .thenReturn(programDefinitionQuery);
+        when(programDefinitionQuery.get()).thenReturn(definitionFuture);
+        when(definitionFuture.get()).thenReturn(definitionSnapshot);
+        when(definitionSnapshot.getDocuments()).thenReturn(List.of(definitionDocument));
+        when(definitionDocument.toObject(CredentialDefinition.class)).thenReturn(definition);
+        when(attendanceCollection.whereEqualTo("userUID", "youth-123")).thenReturn(attendanceUserQuery);
+        when(attendanceUserQuery.whereEqualTo("programID", "program-123")).thenReturn(attendanceProgramQuery);
+        when(attendanceProgramQuery.whereEqualTo("attendanceStatus", "present")).thenReturn(attendancePresentQuery);
+        when(attendancePresentQuery.get()).thenReturn(attendanceFuture);
+        when(attendanceFuture.get()).thenReturn(attendanceSnapshot);
+        when(attendanceSnapshot.getDocuments()).thenReturn(List.of(attendanceDocumentOne, attendanceDocumentTwo));
+        when(earnedCollection.whereEqualTo("userUID", "youth-123")).thenReturn(earnedUserQuery);
+        when(earnedUserQuery.whereEqualTo("credentialID", "credential-123")).thenReturn(earnedCredentialQuery);
+        when(earnedCredentialQuery.get()).thenReturn(earnedLookupFuture);
+        when(earnedLookupFuture.get()).thenReturn(earnedLookupSnapshot);
+        when(earnedLookupSnapshot.getDocuments()).thenReturn(List.of());
+        when(earnedCollection.document(any(String.class))).thenReturn(earnedDocument);
+        when(usersCollection.document("youth-123")).thenReturn(userDocument);
+        when(earnedDocument.set(any(EarnedCredential.class))).thenReturn(earnedWriteFuture);
+        when(userDocument.update(eq("earnedCredentialIds"), any())).thenReturn(userUpdateFuture);
+        when(earnedWriteFuture.get()).thenReturn(mock(WriteResult.class));
+        when(userUpdateFuture.get()).thenReturn(mock(WriteResult.class));
+
+        CredentialService service = new CredentialService(firestore, notificationService);
+        List<String> awardedCredentialIds = service.evaluateAttendanceAutoAwards(
+                "youth-123",
+                "program-123",
+                "staff-123"
+        );
+
+        ArgumentCaptor<EarnedCredential> earnedCaptor = ArgumentCaptor.forClass(EarnedCredential.class);
+        verify(earnedDocument).set(earnedCaptor.capture());
+        verify(userDocument).update(eq("earnedCredentialIds"), any());
+
+        assertEquals(1, awardedCredentialIds.size());
+        EarnedCredential earnedCredential = earnedCaptor.getValue();
+        assertEquals("credential-123", earnedCredential.getCredentialID());
+        assertEquals("youth-123", earnedCredential.getUserUID());
+        assertEquals("staff-123", earnedCredential.getAwardedByStaffUID());
+        assertEquals("awarded", earnedCredential.getStatus());
+        verify(notificationService).createCredentialEarnedNotification(
+                "youth-123",
+                "credential-123",
+                awardedCredentialIds.get(0)
+        );
+    }
+}

@@ -7,8 +7,11 @@ import com.google.cloud.firestore.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.rmi.server.UID;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.Date;
+import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 
 @Service
@@ -36,8 +39,8 @@ public class DiscussionPostService {
     }
 
     public String createDiscussionPost(DiscussionPost post) throws Exception {
-        // 1. Get the real user data from your existing users collection
-        DocumentSnapshot userDoc = firestore.collection("users")
+        // Look up the creator in the same profile collection used by UserInfoService.
+        DocumentSnapshot userDoc = firestore.collection(UserInfoService.COLLECTION_NAME)
                 .document(post.getCreatorUID())
                 .get().get();
 
@@ -98,9 +101,21 @@ public class DiscussionPostService {
 
     public String deletePost(String postID) throws Exception{
 
-        firestore.collection(COLLECTION_NAME).document(postID).delete().get();
+        DocumentReference postRef = firestore.collection(COLLECTION_NAME).document(postID);
 
-        firestore.collection("comments").document(postID).delete().get();
+        ApiFuture<QuerySnapshot> future = firestore.collection("comments")
+                .whereEqualTo("postID", postID)
+                .get();
+
+        WriteBatch batch = firestore.batch();
+        batch.delete(postRef);
+
+        List<QueryDocumentSnapshot> comments = future.get().getDocuments();
+        for (QueryDocumentSnapshot comment : comments) {
+            batch.delete(comment.getReference());
+        }
+        batch.commit().get();
+
         return " All gone";
     }
 }
