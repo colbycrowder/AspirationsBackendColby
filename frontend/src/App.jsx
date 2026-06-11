@@ -7,7 +7,9 @@ import { ProfileCompletionPage } from "./components/ProfileCompletionPage.jsx";
 import { ProgramsPage } from "./components/ProgramsPage.jsx";
 import { RwdLearningCenterPage } from "./components/RwdLearningCenterPage.jsx";
 import { ServiceHoursPage } from "./components/ServiceHoursPage.jsx";
+import { StaffMetricsDashboard } from "./components/StaffMetricsDashboard.jsx";
 import { YouthDashboard } from "./components/YouthDashboard.jsx";
+import { ApiAccessError, fetchStaffMetrics } from "./api.js";
 
 const youthRoutes = [
   { path: "/login", label: "Login", title: "Login", public: true },
@@ -219,8 +221,22 @@ function RouteContent({ route, detail, navigate }) {
     );
   }
 
+  if (route.staff) {
+    return (
+      <StaffGate route={route}>
+        {(metrics) =>
+          route.path === "/staff" || route.path === "/staff/metrics" ? (
+            <StaffMetricsDashboard metrics={metrics} />
+          ) : (
+            <PlaceholderPage route={route} detail={detail} />
+          )
+        }
+      </StaffGate>
+    );
+  }
+
   if (route.path === "/dashboard") {
-    return <YouthDashboard />;
+    return <YouthDashboard navigate={navigate} />;
   }
 
   if (route.path === "/profile") {
@@ -248,6 +264,54 @@ function RouteContent({ route, detail, navigate }) {
   }
 
   return <PlaceholderPage route={route} detail={detail} />;
+}
+
+function StaffGate({ children }) {
+  const { user } = useAuth();
+  const [metrics, setMetrics] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let isActive = true;
+
+    async function checkStaffAccess() {
+      setLoading(true);
+      setError("");
+
+      try {
+        const data = await fetchStaffMetrics(user);
+        if (isActive) {
+          setMetrics(data);
+        }
+      } catch (nextError) {
+        if (isActive) {
+          setError(getStaffAccessMessage(nextError));
+          setMetrics(null);
+        }
+      } finally {
+        if (isActive) {
+          setLoading(false);
+        }
+      }
+    }
+
+    checkStaffAccess();
+
+    return () => {
+      isActive = false;
+    };
+  }, [user]);
+
+  if (loading) {
+    return <StatePanel title="Checking staff access" message="Verifying staff/admin authorization with the backend." />;
+  }
+
+  if (error) {
+    return <StatePanel title="Access denied" message={error} />;
+  }
+
+  return children(metrics);
 }
 
 function AuthForm({ mode, navigate }) {
@@ -456,6 +520,18 @@ function getAuthErrorMessage(error, isCreate) {
   return isCreate
     ? "Account creation failed. Check the Firebase configuration and try again."
     : "Login failed. Check the Firebase configuration and try again.";
+}
+
+function getStaffAccessMessage(error) {
+  if (error instanceof ApiAccessError && error.status === 401) {
+    return "Sign in with a valid Firebase account before opening staff/admin tools.";
+  }
+
+  if (error instanceof ApiAccessError && error.status === 403) {
+    return "This account does not have staff or admin access.";
+  }
+
+  return error.message || "Staff/admin access could not be verified. Confirm the backend is running and try again.";
 }
 
 export default App;

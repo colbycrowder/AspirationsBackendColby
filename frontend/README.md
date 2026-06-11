@@ -87,8 +87,10 @@ counts and mark notifications as read.
 The youth Service Hours page uses the dashboard response to show records,
 status totals, and the configured request form URL.
 
-Staff/admin pages do not connect to backend APIs yet, and the app does not
-perform role-based staff/admin authorization yet.
+The staff dashboard and metrics page now use the protected backend metrics
+endpoint as the staff/admin authorization check.
+Other staff/admin pages remain placeholders for later Staff/Admin MVP
+checkpoints.
 
 ## Environment Variables
 
@@ -106,7 +108,8 @@ Enable Email/Password sign-in in the Firebase project before testing login or
 account creation.
 
 Protected youth and staff/admin placeholder pages require a signed-in Firebase
-user. Staff/admin role checks are intentionally deferred to a later checkpoint.
+user. Staff/admin data access is verified by the backend using Firestore role
+values of `staff` or `admin`.
 
 ## Local Auth Test
 
@@ -129,6 +132,29 @@ user. Staff/admin role checks are intentionally deferred to a later checkpoint.
 If the backend is not running, or the signed-in Firebase user does not have a
 matching Firestore profile document, the dashboard shows a clear unavailable
 message instead of failing silently.
+
+## Local Staff Metrics Test
+
+The Staff Dashboard and Metrics page call:
+
+```text
+GET /api/staff/metrics
+Authorization: Bearer <Firebase ID token>
+```
+
+To test locally:
+
+1. Start the backend with `./gradlew bootRun` from `../UserData`.
+2. Start the frontend with `npm run dev`.
+3. Sign in with a Firebase user whose Firestore profile has `role = staff` or `role = admin`.
+4. Open `Staff Dashboard` or `Metrics`.
+5. Confirm platform metrics render.
+
+Expected access behavior:
+
+- Signed-out users see a sign-in requirement.
+- Signed-in youth/member users see an access denied message.
+- If the backend is unavailable, the page shows a backend unavailable message.
 
 ## Local Profile Completion Test
 

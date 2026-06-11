@@ -1,5 +1,13 @@
 import { appConfig } from "./config.js";
 
+export class ApiAccessError extends Error {
+  constructor(message, status) {
+    super(message);
+    this.name = "ApiAccessError";
+    this.status = status;
+  }
+}
+
 export async function fetchActivePrograms() {
   const response = await fetch(`${trimTrailingSlash(appConfig.apiBaseUrl)}/api/programs`);
 
@@ -234,6 +242,41 @@ export async function markNotificationRead(user, notificationId) {
   }
 
   return response.text();
+}
+
+export async function fetchStaffMetrics(user) {
+  if (!user) {
+    throw new ApiAccessError("Sign in before opening staff/admin tools.", 401);
+  }
+
+  const response = await fetchStaffEndpoint(user, "/api/staff/metrics");
+  const metrics = await response.json();
+  return metrics && typeof metrics === "object" ? metrics : {};
+}
+
+async function fetchStaffEndpoint(user, path, options = {}) {
+  const token = await user.getIdToken();
+  const response = await fetch(`${trimTrailingSlash(appConfig.apiBaseUrl)}${path}`, {
+    ...options,
+    headers: {
+      ...(options.headers || {}),
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (response.status === 401) {
+    throw new ApiAccessError("Firebase sign-in is required or the token was rejected.", 401);
+  }
+
+  if (response.status === 403) {
+    throw new ApiAccessError("Staff or admin access is required for this page.", 403);
+  }
+
+  if (!response.ok) {
+    throw new ApiAccessError("Staff/admin data is unavailable. Confirm the backend is running and try again.", response.status);
+  }
+
+  return response;
 }
 
 async function readResponseMessage(response) {

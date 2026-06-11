@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { fetchYouthDashboard } from "../api.js";
 import { useAuth } from "../auth/AuthContext.jsx";
 
-export function YouthDashboard() {
+export function YouthDashboard({ navigate }) {
   const { user } = useAuth();
   const [dashboard, setDashboard] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -56,6 +56,8 @@ export function YouthDashboard() {
   return (
     <div className="dashboard-stack">
       <ProfileSummary profile={dashboard?.profileSummary} unreadCount={dashboard?.unreadNotificationCount} />
+
+      <GuidanceGrid dashboard={dashboard} navigate={navigate} />
 
       <DashboardSection title="Programs">
         <ProgramList programs={dashboard?.programs} />
@@ -143,6 +145,77 @@ export function YouthDashboard() {
         />
       </DashboardSection>
     </div>
+  );
+}
+
+function GuidanceGrid({ dashboard, navigate }) {
+  const profile = dashboard?.profileSummary || {};
+  const earnedCredentials = asArray(dashboard?.earnedCredentials);
+  const availableCredentials = asArray(dashboard?.availableCredentials);
+  const serviceHourRecords = asArray(dashboard?.serviceHourRecords);
+  const rwdItems = asArray(dashboard?.rwdLearningCenter);
+  const programs = asArray(dashboard?.programs);
+  const completion = getProfileCompletion(profile);
+  const serviceSummary = getServiceHourSummary(serviceHourRecords);
+  const rwdSummary = getRwdSummary(rwdItems);
+
+  return (
+    <>
+      <section className="dashboard-guidance-grid" aria-label="Dashboard guidance">
+        <article className="guidance-card">
+          <div className="guidance-card-header">
+            <div>
+              <span className="eyebrow">Profile</span>
+              <h3>Profile Completion</h3>
+            </div>
+            <strong>{completion.percent}%</strong>
+          </div>
+          <div className="progress-track" aria-label={`Profile completion ${completion.percent} percent`}>
+            <span style={{ width: `${completion.percent}%` }} />
+          </div>
+          {completion.missing.length ? (
+            <p>Missing: {completion.missing.join(", ")}</p>
+          ) : (
+            <p>Your basic profile is ready for onboarding.</p>
+          )}
+          <button className="text-action" type="button" onClick={() => navigate("/profile")}>
+            Open Profile
+          </button>
+        </article>
+
+        <article className="guidance-card">
+          <span className="eyebrow">Next Actions</span>
+          <h3>Keep Moving</h3>
+          <div className="next-action-list">
+            {getNextActions({ completion, programs, rwdItems, serviceHourRecords, earnedCredentials }).map((action) => (
+              <button className="next-action-button" key={action.path} type="button" onClick={() => navigate(action.path)}>
+                <strong>{action.label}</strong>
+                <span>{action.note}</span>
+              </button>
+            ))}
+          </div>
+        </article>
+      </section>
+
+      <section className="dashboard-summary-grid" aria-label="Dashboard summary">
+        <SummaryTile label="Earned Credentials" value={earnedCredentials.length} />
+        <SummaryTile label="Available Credentials" value={availableCredentials.length} />
+        <SummaryTile label="Approved Hours" value={formatHours(serviceSummary.approved)} />
+        <SummaryTile label="Pending Hours" value={formatHours(serviceSummary.pending)} />
+        <SummaryTile label="RWD Complete" value={rwdSummary.completed} />
+        <SummaryTile label="RWD Remaining" value={rwdSummary.remaining} />
+        <SummaryTile label="Unread Notices" value={dashboard?.unreadNotificationCount ?? 0} />
+      </section>
+    </>
+  );
+}
+
+function SummaryTile({ label, value }) {
+  return (
+    <article className="summary-tile">
+      <strong>{value}</strong>
+      <span>{label}</span>
+    </article>
   );
 }
 
@@ -245,6 +318,99 @@ function RecordList({ records, emptyText, renderRecord }) {
       ))}
     </div>
   );
+}
+
+function getProfileCompletion(profile) {
+  const checks = [
+    { label: "first name", complete: hasText(profile.firstName) },
+    { label: "last name", complete: hasText(profile.lastName) },
+    { label: "email", complete: hasText(profile.email) },
+    { label: "school", complete: hasText(profile.school) },
+    { label: "graduation year", complete: hasText(profile.graduationYear) },
+  ];
+  const completed = checks.filter((check) => check.complete).length;
+  return {
+    missing: checks.filter((check) => !check.complete).map((check) => check.label),
+    percent: Math.round((completed / checks.length) * 100),
+  };
+}
+
+function getNextActions({ completion, programs, rwdItems, serviceHourRecords, earnedCredentials }) {
+  const actions = [];
+
+  if (completion.percent < 100) {
+    actions.push({
+      label: "Complete profile",
+      note: "Add school and graduation year.",
+      path: "/profile",
+    });
+  }
+
+  if (!programs.length) {
+    actions.push({
+      label: "Join a program",
+      note: "Enroll in an active ASPN program.",
+      path: "/programs",
+    });
+  }
+
+  if (getRwdSummary(rwdItems).remaining > 0) {
+    actions.push({
+      label: "Start RWD activity",
+      note: "Open the RWD Learning Center.",
+      path: "/rwd-learning-center",
+    });
+  }
+
+  if (!serviceHourRecords.length) {
+    actions.push({
+      label: "Submit service hours",
+      note: "Use the current request link.",
+      path: "/service-hours",
+    });
+  }
+
+  actions.push({
+    label: "View credentials",
+    note: earnedCredentials.length ? "Review earned credentials." : "See available credentials.",
+    path: "/credentials",
+  });
+
+  return actions.slice(0, 5);
+}
+
+function getServiceHourSummary(records) {
+  return records.reduce(
+    (summary, record) => {
+      const status = (record.verificationStatus || "pending").toLowerCase();
+      const hours = Number(record.hours || 0);
+      if (status === "verified") {
+        summary.approved += hours;
+      }
+      if (status === "pending") {
+        summary.pending += hours;
+      }
+      return summary;
+    },
+    { approved: 0, pending: 0 }
+  );
+}
+
+function getRwdSummary(items) {
+  const completed = items.filter((item) => item?.progress?.completionStatus === "completed").length;
+  return {
+    completed,
+    remaining: Math.max(items.length - completed, 0),
+  };
+}
+
+function hasText(value) {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function formatHours(value) {
+  const hours = Number(value || 0);
+  return Number.isInteger(hours) ? String(hours) : hours.toFixed(1);
 }
 
 function DashboardState({ title, message, note }) {

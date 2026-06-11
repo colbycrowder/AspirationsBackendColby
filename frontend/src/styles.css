@@ -359,6 +359,79 @@ h3 {
   gap: 18px;
 }
 
+.dashboard-guidance-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 14px;
+}
+
+.dashboard-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+.guidance-card {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+  padding: 18px;
+  background: #ffffff;
+  border: 1px solid #dfe7ef;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(19, 38, 58, 0.06);
+}
+
+.guidance-card-header {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.guidance-card-header h3,
+.guidance-card h3 {
+  margin-bottom: 0;
+}
+
+.guidance-card-header strong {
+  font-size: 1.6rem;
+  color: #245d53;
+}
+
+.guidance-card p {
+  margin-bottom: 0;
+  color: #35475a;
+}
+
+.next-action-list {
+  display: grid;
+  gap: 10px;
+}
+
+.next-action-button {
+  display: grid;
+  gap: 3px;
+  width: 100%;
+  padding: 12px;
+  font: inherit;
+  text-align: left;
+  color: #1c2430;
+  cursor: pointer;
+  background: #f8fafc;
+  border: 1px solid #dfe7ef;
+  border-radius: 8px;
+}
+
+.next-action-button:hover {
+  border-color: #b9e5dc;
+  background: #f2fbf8;
+}
+
+.next-action-button span {
+  color: #607386;
+}
+
 .programs-stack {
   display: grid;
   gap: 18px;
@@ -387,6 +460,17 @@ h3 {
 .profile-stack {
   display: grid;
   gap: 18px;
+}
+
+.staff-stack {
+  display: grid;
+  gap: 18px;
+}
+
+.staff-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
 }
 
 .credential-summary-grid {
@@ -947,5 +1031,9 @@ h3 {
   .dashboard-hero {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .dashboard-guidance-grid {
+    grid-template-columns: 1fr;
   }
 }
