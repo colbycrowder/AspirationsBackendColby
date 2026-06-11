@@ -8,6 +8,8 @@ import { ProgramsPage } from "./components/ProgramsPage.jsx";
 import { RwdLearningCenterPage } from "./components/RwdLearningCenterPage.jsx";
 import { ServiceHoursPage } from "./components/ServiceHoursPage.jsx";
 import { StaffMetricsDashboard } from "./components/StaffMetricsDashboard.jsx";
+import { StaffProgramManagementPage } from "./components/StaffProgramManagementPage.jsx";
+import { StaffYouthManagementPage } from "./components/StaffYouthManagementPage.jsx";
 import { YouthDashboard } from "./components/YouthDashboard.jsx";
 import { ApiAccessError, fetchStaffMetrics } from "./api.js";
 
@@ -227,6 +229,10 @@ function RouteContent({ route, detail, navigate }) {
         {(metrics) =>
           route.path === "/staff" || route.path === "/staff/metrics" ? (
             <StaffMetricsDashboard metrics={metrics} />
+          ) : route.path === "/staff/youth-management" ? (
+            <StaffYouthManagementPage />
+          ) : route.path === "/staff/program-management" ? (
+            <StaffProgramManagementPage />
           ) : (
             <PlaceholderPage route={route} detail={detail} />
           )
@@ -400,8 +406,8 @@ function PlaceholderPage({ route, detail }) {
     <>
       {route.staff ? (
         <section className="notice-panel">
-          <strong>Staff/admin role check pending.</strong>
-          <span> This shell only verifies sign-in. Backend role validation will be connected later.</span>
+          <strong>Staff/admin access verified.</strong>
+          <span> This placeholder is behind the protected backend staff/admin authorization check.</span>
         </section>
       ) : null}
 

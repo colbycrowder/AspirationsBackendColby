@@ -89,8 +89,11 @@ status totals, and the configured request form URL.
 
 The staff dashboard and metrics page now use the protected backend metrics
 endpoint as the staff/admin authorization check.
-Other staff/admin pages remain placeholders for later Staff/Admin MVP
-checkpoints.
+The staff Youth Management page uses protected youth review endpoints.
+The staff Program Management page uses protected program and enrollment
+management endpoints.
+Credential, attendance, service-hour, and RWD staff/admin pages remain
+placeholders for later Staff/Admin MVP checkpoints.
 
 ## Environment Variables
 
@@ -155,6 +158,67 @@ Expected access behavior:
 - Signed-out users see a sign-in requirement.
 - Signed-in youth/member users see an access denied message.
 - If the backend is unavailable, the page shows a backend unavailable message.
+
+## Local Staff Youth Management Test
+
+The Youth Management page calls:
+
+```text
+GET /api/staff/users/youth
+PATCH /api/staff/users/youth/{id}
+Authorization: Bearer <Firebase ID token>
+Content-Type: application/json
+```
+
+The editable review fields are:
+
+```json
+{
+  "profileStatus": "pending_onboarding",
+  "staffReviewRequired": true,
+  "staffVerified": false
+}
+```
+
+To test locally:
+
+1. Start the backend with `./gradlew bootRun` from `../UserData`.
+2. Start the frontend with `npm run dev`.
+3. Sign in with a Firebase user whose Firestore profile has `role = staff` or `role = admin`.
+4. Open `Youth Management`.
+5. Select a youth profile.
+6. Update profile status or staff review flags.
+7. Save and confirm the page refreshes.
+
+The frontend does not expose UID, role, staff/admin status, public profile
+settings, or youth-owned profile fields for staff editing.
+
+## Local Staff Program Management Test
+
+The Program Management page calls:
+
+```text
+GET /api/programs
+POST /api/staff/programs
+PATCH /api/staff/programs/{programId}
+GET /api/staff/program-enrollments
+PATCH /api/staff/program-enrollments/{enrollmentId}/remove
+Authorization: Bearer <Firebase ID token>
+```
+
+To test locally:
+
+1. Start the backend with `./gradlew bootRun` from `../UserData`.
+2. Start the frontend with `npm run dev`.
+3. Sign in with a Firebase user whose Firestore profile has `role = staff` or `role = admin`.
+4. Open `Program Management`.
+5. Create an active program.
+6. Select an active program, update fields, and save.
+7. Use `Archive Program` to set `programStatus = archived`.
+8. Review enrollment records and remove an active enrollment if needed.
+
+The current backend exposes active program listing through `GET /api/programs`.
+Archived programs are not returned by that list after they are archived.
 
 ## Local Profile Completion Test
 

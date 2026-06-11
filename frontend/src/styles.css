@@ -473,6 +473,43 @@ h3 {
   gap: 12px;
 }
 
+.staff-management-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.8fr) minmax(0, 1.2fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.staff-record-list,
+.staff-enrollment-list {
+  display: grid;
+  gap: 10px;
+}
+
+.staff-record-card {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  padding: 12px;
+  font: inherit;
+  text-align: left;
+  color: #1c2430;
+  cursor: pointer;
+  background: #f8fafc;
+  border: 1px solid #dfe7ef;
+  border-radius: 8px;
+}
+
+.staff-record-card:hover,
+.staff-record-card.selected {
+  background: #f2fbf8;
+  border-color: #b9e5dc;
+}
+
+.staff-record-card span {
+  color: #607386;
+}
+
 .credential-summary-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -843,6 +880,7 @@ h3 {
 }
 
 .form-grid input,
+.form-grid select,
 .form-grid textarea {
   width: 100%;
   min-height: 42px;
@@ -859,9 +897,33 @@ h3 {
 }
 
 .form-grid input:focus,
+.form-grid select:focus,
 .form-grid textarea:focus {
   outline: 3px solid #ccebe5;
   border-color: #3f7e6f;
+}
+
+.form-grid .checkbox-row {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  align-content: center;
+  padding: 11px 12px;
+  background: #f8fafc;
+  border: 1px solid #dfe7ef;
+  border-radius: 8px;
+}
+
+.form-grid .checkbox-row input {
+  width: 18px;
+  min-height: 18px;
+}
+
+.full-width-field {
+  grid-column: 1 / -1;
+}
+
+.danger-action {
+  color: #8a1f2d;
 }
 
 .profile-actions {
@@ -955,6 +1017,19 @@ h3 {
   margin-bottom: 0;
 }
 
+.section-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.section-header p {
+  margin-bottom: 0;
+  color: #607386;
+}
+
 .dashboard-card-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -1005,6 +1080,10 @@ h3 {
 
 @media (max-width: 860px) {
   .app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .staff-management-grid {
     grid-template-columns: 1fr;
   }
 

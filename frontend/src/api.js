@@ -254,7 +254,105 @@ export async function fetchStaffMetrics(user) {
   return metrics && typeof metrics === "object" ? metrics : {};
 }
 
+export async function fetchStaffYouthUsers(user) {
+  const response = await fetchStaffEndpoint(user, "/api/staff/users/youth");
+  const users = await response.json();
+  return Array.isArray(users) ? users : [];
+}
+
+export async function fetchStaffYouthUser(user, userUID) {
+  if (!userUID) {
+    throw new Error("Youth user selection is required.");
+  }
+
+  const response = await fetchStaffEndpoint(user, `/api/staff/users/youth/${encodeURIComponent(userUID)}`);
+  return response.json();
+}
+
+export async function updateStaffYouthUser(user, userUID, updates) {
+  if (!userUID) {
+    throw new Error("Youth user selection is required.");
+  }
+
+  const response = await fetchStaffEndpoint(user, `/api/staff/users/youth/${encodeURIComponent(userUID)}`, {
+    body: JSON.stringify(updates),
+    headers: {
+      "Content-Type": "application/json",
+    },
+    method: "PATCH",
+  });
+
+  return response.text();
+}
+
+export async function createStaffProgram(user, program) {
+  const response = await fetchStaffEndpoint(user, "/api/staff/programs", {
+    body: JSON.stringify(program),
+    headers: {
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+  });
+
+  return response.text();
+}
+
+export async function updateStaffProgram(user, programId, updates) {
+  if (!programId) {
+    throw new Error("Program selection is required.");
+  }
+
+  const response = await fetchStaffEndpoint(user, `/api/staff/programs/${encodeURIComponent(programId)}`, {
+    body: JSON.stringify(updates),
+    headers: {
+      "Content-Type": "application/json",
+    },
+    method: "PATCH",
+  });
+
+  return response.text();
+}
+
+export async function fetchStaffProgramEnrollments(user) {
+  const response = await fetchStaffEndpoint(user, "/api/staff/program-enrollments");
+  const enrollments = await response.json();
+  return Array.isArray(enrollments) ? enrollments : [];
+}
+
+export async function fetchStaffProgramEnrollmentsForProgram(user, programId) {
+  if (!programId) {
+    throw new Error("Program selection is required.");
+  }
+
+  const response = await fetchStaffEndpoint(
+    user,
+    `/api/staff/program-enrollments/program/${encodeURIComponent(programId)}`
+  );
+  const enrollments = await response.json();
+  return Array.isArray(enrollments) ? enrollments : [];
+}
+
+export async function removeStaffProgramEnrollment(user, enrollmentId) {
+  if (!enrollmentId) {
+    throw new Error("Enrollment selection is required.");
+  }
+
+  const response = await fetchStaffEndpoint(
+    user,
+    `/api/staff/program-enrollments/${encodeURIComponent(enrollmentId)}/remove`,
+    {
+      method: "PATCH",
+    }
+  );
+
+  return response.text();
+}
+
 async function fetchStaffEndpoint(user, path, options = {}) {
+  if (!user) {
+    throw new ApiAccessError("Sign in before opening staff/admin tools.", 401);
+  }
+
   const token = await user.getIdToken();
   const response = await fetch(`${trimTrailingSlash(appConfig.apiBaseUrl)}${path}`, {
     ...options,
