@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { appConfig } from "./config.js";
 import { useAuth } from "./auth/AuthContext.jsx";
+import { ProgramsPage } from "./components/ProgramsPage.jsx";
 import { YouthDashboard } from "./components/YouthDashboard.jsx";
 
 const youthRoutes = [
@@ -209,6 +210,10 @@ function RouteContent({ route, detail, navigate }) {
 
   if (route.path === "/dashboard") {
     return <YouthDashboard />;
+  }
+
+  if (route.path === "/programs") {
+    return <ProgramsPage />;
   }
 
   return <PlaceholderPage route={route} detail={detail} />;

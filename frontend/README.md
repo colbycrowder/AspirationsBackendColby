@@ -74,6 +74,8 @@ It includes Firebase Authentication login, account creation, logout, auth state,
 and protected route shell behavior.
 
 The youth dashboard connects to the backend dashboard endpoint.
+The youth Programs page connects to active-program listing and youth
+self-enrollment endpoints.
 
 Staff/admin pages do not connect to backend APIs yet, and the app does not
 perform role-based staff/admin authorization yet.
@@ -117,3 +119,39 @@ user. Staff/admin role checks are intentionally deferred to a later checkpoint.
 If the backend is not running, or the signed-in Firebase user does not have a
 matching Firestore profile document, the dashboard shows a clear unavailable
 message instead of failing silently.
+
+## Local Programs and Enrollment Test
+
+The Programs page calls:
+
+```text
+GET /api/programs
+```
+
+Enrollment calls:
+
+```text
+POST /api/me/program-enrollments
+Authorization: Bearer <Firebase ID token>
+Content-Type: application/json
+
+{
+  "programId": "PROGRAM_ID"
+}
+```
+
+To test locally:
+
+1. Start the backend with `./gradlew bootRun` from `../UserData`.
+2. Start the frontend with `npm run dev`.
+3. Sign in with Firebase.
+4. Confirm the signed-in Firebase UID has a matching Firestore profile document.
+5. Confirm Firestore has at least one active document in the `programs` collection.
+6. Open `Programs`.
+7. Click `Enroll` on an active program.
+8. Return to `Youth Dashboard` and confirm the enrolled active program appears.
+
+Duplicate enrollment attempts should show a friendly already-enrolled message.
+Archived programs are not returned by `GET /api/programs`; if a stale archived
+program ID is submitted, the backend rejects it and the frontend shows an
+unavailable-program message.
