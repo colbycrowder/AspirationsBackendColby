@@ -86,6 +86,40 @@ export async function enrollInProgram(user, programId) {
   return response.text();
 }
 
+export async function saveRwdProgress(user, progress) {
+  if (!user) {
+    throw new Error("Sign in before updating RWD progress.");
+  }
+
+  if (!progress?.rwdActivityId) {
+    throw new Error("RWD activity selection is required before updating progress.");
+  }
+
+  const token = await user.getIdToken();
+  const response = await fetch(`${trimTrailingSlash(appConfig.apiBaseUrl)}/api/me/rwd-progress`, {
+    body: JSON.stringify(progress),
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+  });
+
+  if (response.status === 401) {
+    throw new Error("Firebase sign-in is required or the token was rejected.");
+  }
+
+  if (response.status === 400) {
+    throw new Error("RWD progress could not be saved for this activity.");
+  }
+
+  if (!response.ok) {
+    throw new Error("RWD progress update failed. Confirm the backend is running and try again.");
+  }
+
+  return response.json();
+}
+
 async function readResponseMessage(response) {
   try {
     return await response.text();

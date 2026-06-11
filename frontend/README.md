@@ -78,6 +78,8 @@ The youth Programs page connects to active-program listing and youth
 self-enrollment endpoints.
 The youth Credentials page uses the dashboard response to show earned and
 available credentials.
+The youth RWD Learning Center page uses the dashboard response to show active
+RWD items and uses the youth progress endpoint for simple status updates.
 The youth Service Hours page uses the dashboard response to show records,
 status totals, and the configured request form URL.
 
@@ -165,6 +167,42 @@ To test locally:
 
 Youth service-hour submission is not currently exposed as a backend youth route.
 The page links to the configured request form URL when staff/admin has set one.
+
+## Local RWD Learning Center Test
+
+The RWD Learning Center page reads:
+
+```text
+GET /api/me/dashboard
+Authorization: Bearer <Firebase ID token>
+```
+
+Progress updates call:
+
+```text
+POST /api/me/rwd-progress
+Authorization: Bearer <Firebase ID token>
+Content-Type: application/json
+
+{
+  "rwdActivityId": "RWD_ACTIVITY_ID",
+  "completionStatus": "in_progress"
+}
+```
+
+To test locally:
+
+1. Start the backend with `./gradlew bootRun` from `../UserData`.
+2. Start the frontend with `npm run dev`.
+3. Sign in with Firebase.
+4. Confirm the signed-in Firebase UID has a matching Firestore profile document.
+5. Confirm Firestore has active documents in the `rwdActivities` collection.
+6. Open `RWD Learning Center`.
+7. Open an activity link or mark an item in progress/completed.
+8. Confirm the page refreshes progress from the dashboard response.
+
+The frontend does not create quiz questions. Quiz score and credential-award
+logic remain backend-supported workflows for a later UI checkpoint.
 
 ## Local Programs and Enrollment Test
 

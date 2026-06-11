@@ -3,6 +3,7 @@ import { appConfig } from "./config.js";
 import { useAuth } from "./auth/AuthContext.jsx";
 import { CredentialsPage } from "./components/CredentialsPage.jsx";
 import { ProgramsPage } from "./components/ProgramsPage.jsx";
+import { RwdLearningCenterPage } from "./components/RwdLearningCenterPage.jsx";
 import { ServiceHoursPage } from "./components/ServiceHoursPage.jsx";
 import { YouthDashboard } from "./components/YouthDashboard.jsx";
 
@@ -220,6 +221,10 @@ function RouteContent({ route, detail, navigate }) {
 
   if (route.path === "/credentials") {
     return <CredentialsPage />;
+  }
+
+  if (route.path === "/rwd-learning-center") {
+    return <RwdLearningCenterPage />;
   }
 
   if (route.path === "/service-hours") {
