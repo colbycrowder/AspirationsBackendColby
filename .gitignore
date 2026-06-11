@@ -1,0 +1,3 @@
+
+# Local Gradle cache
+.gradle-local/
