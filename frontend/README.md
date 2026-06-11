@@ -80,6 +80,8 @@ The youth Credentials page uses the dashboard response to show earned and
 available credentials.
 The youth RWD Learning Center page uses the dashboard response to show active
 RWD items and uses the youth progress endpoint for simple status updates.
+The youth Notifications page uses youth notification endpoints to show unread
+counts and mark notifications as read.
 The youth Service Hours page uses the dashboard response to show records,
 status totals, and the configured request form URL.
 
@@ -203,6 +205,34 @@ To test locally:
 
 The frontend does not create quiz questions. Quiz score and credential-award
 logic remain backend-supported workflows for a later UI checkpoint.
+
+## Local Notifications Test
+
+The Notifications page reads:
+
+```text
+GET /api/me/notifications
+Authorization: Bearer <Firebase ID token>
+```
+
+It marks notifications read with:
+
+```text
+PATCH /api/me/notifications/{notificationId}/read
+Authorization: Bearer <Firebase ID token>
+```
+
+To test locally:
+
+1. Start the backend with `./gradlew bootRun` from `../UserData`.
+2. Start the frontend with `npm run dev`.
+3. Sign in with Firebase.
+4. Confirm the signed-in Firebase UID has a matching Firestore profile document.
+5. Confirm the user has notification documents in the `notifications` collection, or award a credential to generate one.
+6. Open `Notifications`.
+7. Confirm unread/read status appears.
+8. Click `Mark as Read` on an unread notification.
+9. Confirm the notification updates and the unread count decreases.
 
 ## Local Programs and Enrollment Test
 

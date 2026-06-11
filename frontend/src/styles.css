@@ -379,6 +379,11 @@ h3 {
   gap: 18px;
 }
 
+.notifications-stack {
+  display: grid;
+  gap: 18px;
+}
+
 .credential-summary-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -679,6 +684,55 @@ h3 {
 .rwd-actions .text-action:disabled {
   cursor: not-allowed;
   opacity: 0.55;
+}
+
+.notification-list {
+  display: grid;
+  gap: 12px;
+}
+
+.notification-card {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  background: #f8fafc;
+  border: 1px solid #dfe7ef;
+  border-radius: 8px;
+}
+
+.notification-card.unread {
+  background: #ffffff;
+  border-color: #b9e5dc;
+}
+
+.notification-card.read {
+  opacity: 0.84;
+}
+
+.notification-card-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.notification-card-header div {
+  display: grid;
+  gap: 4px;
+}
+
+.notification-card-header strong {
+  color: #1c2430;
+}
+
+.notification-card-header span,
+.notification-card p {
+  color: #607386;
+}
+
+.notification-card p {
+  margin-bottom: 0;
 }
 
 .message-panel {

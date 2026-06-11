@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { appConfig } from "./config.js";
 import { useAuth } from "./auth/AuthContext.jsx";
 import { CredentialsPage } from "./components/CredentialsPage.jsx";
+import { NotificationsPage } from "./components/NotificationsPage.jsx";
 import { ProgramsPage } from "./components/ProgramsPage.jsx";
 import { RwdLearningCenterPage } from "./components/RwdLearningCenterPage.jsx";
 import { ServiceHoursPage } from "./components/ServiceHoursPage.jsx";
@@ -225,6 +226,10 @@ function RouteContent({ route, detail, navigate }) {
 
   if (route.path === "/rwd-learning-center") {
     return <RwdLearningCenterPage />;
+  }
+
+  if (route.path === "/notifications") {
+    return <NotificationsPage />;
   }
 
   if (route.path === "/service-hours") {

@@ -120,6 +120,65 @@ export async function saveRwdProgress(user, progress) {
   return response.json();
 }
 
+export async function fetchNotifications(user) {
+  if (!user) {
+    throw new Error("Sign in before viewing notifications.");
+  }
+
+  const token = await user.getIdToken();
+  const response = await fetch(`${trimTrailingSlash(appConfig.apiBaseUrl)}/api/me/notifications`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (response.status === 401) {
+    throw new Error("Firebase sign-in is required or the token was rejected.");
+  }
+
+  if (!response.ok) {
+    throw new Error("Notifications are unavailable. Confirm the backend is running and try again.");
+  }
+
+  const notifications = await response.json();
+  return Array.isArray(notifications) ? notifications : [];
+}
+
+export async function markNotificationRead(user, notificationId) {
+  if (!user) {
+    throw new Error("Sign in before updating notifications.");
+  }
+
+  if (!notificationId) {
+    throw new Error("Notification selection is required.");
+  }
+
+  const token = await user.getIdToken();
+  const response = await fetch(
+    `${trimTrailingSlash(appConfig.apiBaseUrl)}/api/me/notifications/${notificationId}/read`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      method: "PATCH",
+    }
+  );
+
+  if (response.status === 401) {
+    throw new Error("Firebase sign-in is required or the token was rejected.");
+  }
+
+  if (response.status === 403) {
+    throw new Error("This notification does not belong to the signed-in user.");
+  }
+
+  if (!response.ok) {
+    throw new Error("Notification could not be marked as read.");
+  }
+
+  return response.text();
+}
+
 async function readResponseMessage(response) {
   try {
     return await response.text();
