@@ -70,32 +70,12 @@ public class UserInfoController {
 
     @GetMapping("/getUser/{id}")
     public ResponseEntity<User> getUser(@PathVariable String id) {
-        try {
-            User user = userInfoService.getUser(id);
-            if (user != null) {
-                return ResponseEntity.ok(user);
-            }
-            return ResponseEntity.notFound().build();
-        } catch (Exception e) {
-            return ResponseEntity.internalServerError().build();
-        }
+        return ResponseEntity.status(HttpStatus.GONE).build();
     }
 
     @GetMapping("/getUserWithCredentials/{id}")
     public ResponseEntity<UserProfileWithCredentialsDTO> getUserWithCredentials(@PathVariable String id) {
-        try {
-            User user = userInfoService.getUser(id);
-            if (user == null) {
-                return ResponseEntity.notFound().build();
-            }
-
-            UserProfileWithCredentialsDTO response = new UserProfileWithCredentialsDTO();
-            response.setUser(user);
-            response.setEarnedCredentials(credentialService.getEarnedCredentialsForUser(id));
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            return ResponseEntity.internalServerError().build();
-        }
+        return ResponseEntity.status(HttpStatus.GONE).build();
     }
 
     @GetMapping("/me/profile")
@@ -218,34 +198,19 @@ public class UserInfoController {
 
     @GetMapping("/getCommentForPost/{postID}")
     public ResponseEntity<List<Comment>> getCommentsForPost(@PathVariable String postID) throws Exception {
-        try{
-            List<Comment> res = discussionPostService.getCommentsForPost(postID);
-            return  ResponseEntity.ok(res);
-        }catch (Exception e){
-            return  ResponseEntity.internalServerError().build();
-        }
+        return ResponseEntity.status(HttpStatus.GONE).build();
 
     }
     @PostMapping("/upVote/{postID}")
     public ResponseEntity<Void> upVote(@PathVariable String postID) throws Exception {
-        try{
-         discussionPostService.upvotePost(postID);
-            return  ResponseEntity.ok().build();
-        }catch (Exception e){
-            return  ResponseEntity.internalServerError().build();
-        }
+        return ResponseEntity.status(HttpStatus.GONE).build();
 
     }
 
 
     @DeleteMapping("/deletePost/{postID}")
     public ResponseEntity<String> deletePost(@PathVariable String postID) throws Exception {
-        try{
-            discussionPostService.deletePost(postID);
-            return  ResponseEntity.ok("Deleted");
-        }catch (Exception e){
-            return  ResponseEntity.internalServerError().body("Error Deleting" + e);
-        }
+        return ResponseEntity.status(HttpStatus.GONE).body("Legacy discussion endpoints are disabled");
 
     }
 
@@ -253,35 +218,18 @@ public class UserInfoController {
 
     @PostMapping("/createProfile")
     public ResponseEntity<String> createProfile(@RequestBody UserProfileCreationDTO dto) {
-        try {
-            String id = userInfoService.createUserDetails(dto);
-            return ResponseEntity.ok("Profile created with ID: " + id);
-        } catch (Exception e) {
-            return ResponseEntity.internalServerError().body("Error: " + e.getMessage());
-        }
+        return ResponseEntity.status(HttpStatus.GONE).body("Legacy profile creation is disabled; use /api/me/profile");
     }
 
     @PostMapping({"/createPost", "/creatPost"})
     public ResponseEntity<String> createPost(@RequestBody DiscussionPost discussionPost){
-        try{
-            String postID = discussionPostService.createDiscussionPost(discussionPost);
-
-            return  ResponseEntity.ok(postID);
-        } catch (Exception e){
-            return  ResponseEntity.internalServerError().body("Couldn't make the post, got following error" + e);
-        }
+        return ResponseEntity.status(HttpStatus.GONE).body("Legacy discussion endpoints are disabled");
 
     }
 
     @PostMapping("/createComment")
     public ResponseEntity<String> createComment(@RequestBody Comment comment){
-        try{
-            String commentID = discussionPostService.createComment(comment);
-
-            return  ResponseEntity.ok(commentID);
-        } catch (Exception e){
-            return  ResponseEntity.internalServerError().body("Couldn't make the post, got following error" + e);
-        }
+        return ResponseEntity.status(HttpStatus.GONE).body("Legacy discussion endpoints are disabled");
 
     }
 
@@ -289,12 +237,7 @@ public class UserInfoController {
 
     @GetMapping("/getallpost")
     public ResponseEntity<List<DiscussionPost>> getallPost() throws Exception {
-        try{
-            List<DiscussionPost> res = discussionPostService.getAllPosts();
-            return  ResponseEntity.ok(res);
-        }catch (Exception e){
-            return  ResponseEntity.internalServerError().build();
-        }
+        return ResponseEntity.status(HttpStatus.GONE).build();
 
     }
 

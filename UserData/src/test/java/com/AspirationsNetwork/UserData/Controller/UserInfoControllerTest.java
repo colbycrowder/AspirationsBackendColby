@@ -12,6 +12,7 @@ import com.AspirationsNetwork.UserData.DTO.RwdProgressDTO;
 import com.AspirationsNetwork.UserData.DTO.ServiceHourRecordDTO;
 import com.AspirationsNetwork.UserData.DTO.ServiceHourRequestUrlDTO;
 import com.AspirationsNetwork.UserData.DTO.StaffUserUpdateDTO;
+import com.AspirationsNetwork.UserData.DTO.UserProfileCreationDTO;
 import com.AspirationsNetwork.UserData.DTO.UserProfileWithCredentialsDTO;
 import com.AspirationsNetwork.UserData.DTO.YouthDashboardDTO;
 import com.AspirationsNetwork.UserData.DTO.YouthSelfServiceProfileDTO;
@@ -52,6 +53,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.argThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class UserInfoControllerTest {
@@ -86,34 +88,81 @@ class UserInfoControllerTest {
     );
 
     @Test
-    void createPostReturnsCreatedPostId() throws Exception {
+    void createPostReturnsGoneBecauseLegacyDiscussionEndpointsAreDisabled() throws Exception {
         DiscussionPost post = new DiscussionPost();
-        when(discussionPostService.createDiscussionPost(post)).thenReturn("post-123");
 
         ResponseEntity<String> response = controller.createPost(post);
 
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertEquals("post-123", response.getBody());
+        assertEquals(HttpStatus.GONE, response.getStatusCode());
+        assertEquals("Legacy discussion endpoints are disabled", response.getBody());
+        verifyNoInteractions(discussionPostService);
     }
 
     @Test
-    void getCommentsForPostReturnsServerErrorWithoutUnsafeCast() throws Exception {
-        when(discussionPostService.getCommentsForPost("post-123")).thenThrow(new RuntimeException("boom"));
-
+    void getCommentsForPostReturnsGoneBecauseLegacyDiscussionEndpointsAreDisabled() throws Exception {
         ResponseEntity<List<Comment>> response = controller.getCommentsForPost("post-123");
 
-        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
+        assertEquals(HttpStatus.GONE, response.getStatusCode());
         assertNull(response.getBody());
+        verifyNoInteractions(discussionPostService);
     }
 
     @Test
-    void getAllPostsReturnsServerErrorWithoutUnsafeCast() throws Exception {
-        when(discussionPostService.getAllPosts()).thenThrow(new RuntimeException("boom"));
-
+    void getAllPostsReturnsGoneBecauseLegacyDiscussionEndpointsAreDisabled() throws Exception {
         ResponseEntity<List<DiscussionPost>> response = controller.getallPost();
 
-        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
+        assertEquals(HttpStatus.GONE, response.getStatusCode());
         assertNull(response.getBody());
+        verifyNoInteractions(discussionPostService);
+    }
+
+    @Test
+    void createCommentReturnsGoneBecauseLegacyDiscussionEndpointsAreDisabled() throws Exception {
+        Comment comment = new Comment();
+
+        ResponseEntity<String> response = controller.createComment(comment);
+
+        assertEquals(HttpStatus.GONE, response.getStatusCode());
+        assertEquals("Legacy discussion endpoints are disabled", response.getBody());
+        verifyNoInteractions(discussionPostService);
+    }
+
+    @Test
+    void upVoteReturnsGoneBecauseLegacyDiscussionEndpointsAreDisabled() throws Exception {
+        ResponseEntity<Void> response = controller.upVote("post-123");
+
+        assertEquals(HttpStatus.GONE, response.getStatusCode());
+        assertNull(response.getBody());
+        verifyNoInteractions(discussionPostService);
+    }
+
+    @Test
+    void deletePostReturnsGoneBecauseLegacyDiscussionEndpointsAreDisabled() throws Exception {
+        ResponseEntity<String> response = controller.deletePost("post-123");
+
+        assertEquals(HttpStatus.GONE, response.getStatusCode());
+        assertEquals("Legacy discussion endpoints are disabled", response.getBody());
+        verifyNoInteractions(discussionPostService);
+    }
+
+    @Test
+    void createProfileReturnsGoneBecauseLegacyProfileCreationIsDisabled() {
+        UserProfileCreationDTO dto = new UserProfileCreationDTO();
+
+        ResponseEntity<String> response = controller.createProfile(dto);
+
+        assertEquals(HttpStatus.GONE, response.getStatusCode());
+        assertEquals("Legacy profile creation is disabled; use /api/me/profile", response.getBody());
+        verifyNoInteractions(userInfoService);
+    }
+
+    @Test
+    void getUserReturnsGoneBecauseLegacyPublicProfileLookupIsDisabled() {
+        ResponseEntity<User> response = controller.getUser("user-123");
+
+        assertEquals(HttpStatus.GONE, response.getStatusCode());
+        assertNull(response.getBody());
+        verifyNoInteractions(userInfoService);
     }
 
     @Test
@@ -215,30 +264,21 @@ class UserInfoControllerTest {
     }
 
     @Test
-    void getUserWithCredentialsReturnsUserAndEarnedCredentialDisplayData() throws Exception {
-        User user = new User();
-        user.setUid("user-123");
-        EarnedCredentialDisplayDTO credential = new EarnedCredentialDisplayDTO();
-        credential.setCredentialName("Staff configured credential");
-        when(userInfoService.getUser("user-123")).thenReturn(user);
-        when(credentialService.getEarnedCredentialsForUser("user-123")).thenReturn(List.of(credential));
-
+    void getUserWithCredentialsReturnsGoneBecauseLegacyPublicCredentialLookupIsDisabled() throws Exception {
         ResponseEntity<UserProfileWithCredentialsDTO> response = controller.getUserWithCredentials("user-123");
 
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertEquals(user, response.getBody().getUser());
-        assertEquals(1, response.getBody().getEarnedCredentials().size());
-        assertEquals("Staff configured credential", response.getBody().getEarnedCredentials().get(0).getCredentialName());
+        assertEquals(HttpStatus.GONE, response.getStatusCode());
+        assertNull(response.getBody());
+        verifyNoInteractions(userInfoService, credentialService);
     }
 
     @Test
-    void getUserWithCredentialsReturnsNotFoundWhenUserDoesNotExist() throws Exception {
-        when(userInfoService.getUser("missing-user")).thenReturn(null);
-
+    void getUserWithCredentialsReturnsGoneEvenWhenUserDoesNotExist() throws Exception {
         ResponseEntity<UserProfileWithCredentialsDTO> response = controller.getUserWithCredentials("missing-user");
 
-        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+        assertEquals(HttpStatus.GONE, response.getStatusCode());
         assertNull(response.getBody());
+        verifyNoInteractions(userInfoService, credentialService);
     }
 
     @Test
