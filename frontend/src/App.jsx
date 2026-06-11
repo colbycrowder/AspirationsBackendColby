@@ -10,6 +10,7 @@ import { ServiceHoursPage } from "./components/ServiceHoursPage.jsx";
 import { StaffCredentialManagementPage } from "./components/StaffCredentialManagementPage.jsx";
 import { StaffMetricsDashboard } from "./components/StaffMetricsDashboard.jsx";
 import { StaffProgramManagementPage } from "./components/StaffProgramManagementPage.jsx";
+import { StaffRwdManagementPage } from "./components/StaffRwdManagementPage.jsx";
 import { StaffServiceHourManagementPage } from "./components/StaffServiceHourManagementPage.jsx";
 import { StaffYouthManagementPage } from "./components/StaffYouthManagementPage.jsx";
 import { YouthDashboard } from "./components/YouthDashboard.jsx";
@@ -33,6 +34,7 @@ const staffRoutes = [
   { path: "/staff/youth-management", label: "Youth Management", title: "Youth Management", protected: true, staff: true },
   { path: "/staff/program-management", label: "Program Management", title: "Program Management", protected: true, staff: true },
   { path: "/staff/credential-management", label: "Credential Management", title: "Credential Management", protected: true, staff: true },
+  { path: "/staff/rwd-management", label: "RWD Management", title: "RWD Management", protected: true, staff: true },
   { path: "/staff/attendance-management", label: "Attendance Management", title: "Attendance Management", protected: true, staff: true },
   { path: "/staff/service-hour-management", label: "Service Hour Management", title: "Service Hour Management", protected: true, staff: true },
   { path: "/staff/metrics", label: "Metrics", title: "Metrics", protected: true, staff: true },
@@ -114,6 +116,11 @@ const pageDetails = {
     eyebrow: "Staff/Admin",
     description: "Future attendance recording workflow.",
     items: ["Record attendance", "Trigger attendance-count auto-awards", "Review attendance records"],
+  },
+  "/staff/rwd-management": {
+    eyebrow: "Staff/Admin",
+    description: "RWD activity creation and update workflow.",
+    items: ["Create RWD activities", "Update active activities", "Link optional credential definition IDs"],
   },
   "/staff/service-hour-management": {
     eyebrow: "Staff/Admin",
@@ -237,6 +244,8 @@ function RouteContent({ route, detail, navigate }) {
             <StaffProgramManagementPage />
           ) : route.path === "/staff/credential-management" ? (
             <StaffCredentialManagementPage />
+          ) : route.path === "/staff/rwd-management" ? (
+            <StaffRwdManagementPage />
           ) : route.path === "/staff/service-hour-management" ? (
             <StaffServiceHourManagementPage />
           ) : (

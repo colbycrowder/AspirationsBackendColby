@@ -96,8 +96,10 @@ The staff Credential Management page uses protected credential definition and
 manual award endpoints.
 The staff Service Hour Management page uses protected user-specific
 service-hour review and request URL settings endpoints.
-Attendance and RWD staff/admin pages remain placeholders for later Staff/Admin
-MVP checkpoints.
+The staff RWD Management page uses protected RWD activity create/update
+endpoints with the existing active activity listing route.
+Attendance staff/admin remains a placeholder for a later Staff/Admin MVP
+checkpoint.
 
 ## Environment Variables
 
@@ -277,6 +279,35 @@ To test locally:
 
 The current backend exposes user-specific service-hour lookup only. It does not
 yet expose all-record or pending-record staff queue routes.
+
+## Local Staff RWD Management Test
+
+The RWD Management page calls:
+
+```text
+GET /api/rwd/activities
+POST /api/staff/rwd/activities
+PATCH /api/staff/rwd/activities/{rwdActivityId}
+Authorization: Bearer <Firebase ID token>
+Content-Type: application/json
+```
+
+To test locally:
+
+1. Start the backend with `./gradlew bootRun` from `../UserData`.
+2. Start the frontend with `npm run dev`.
+3. Sign in with a Firebase user whose Firestore profile has `role = staff` or `role = admin`.
+4. Open `RWD Management`.
+5. Create an active RWD activity with country, title, description, and external URL.
+6. Optionally enter an associated credential definition ID.
+7. Select an active RWD activity, update fields, and save.
+8. Use `Deactivate Activity` to set `active = false`.
+9. Open the youth RWD Learning Center and confirm active activities appear there.
+
+The current backend exposes active RWD activity listing only. Inactive
+activities are not returned by `GET /api/rwd/activities` after deactivation.
+There is not yet a staff route to list all inactive activities, retrieve one
+activity by ID, or review youth RWD progress by user.
 
 ## Local Profile Completion Test
 

@@ -19,6 +19,17 @@ export async function fetchActivePrograms() {
   return Array.isArray(programs) ? programs : [];
 }
 
+export async function fetchActiveRwdActivities() {
+  const response = await fetch(`${trimTrailingSlash(appConfig.apiBaseUrl)}/api/rwd/activities`);
+
+  if (!response.ok) {
+    throw new Error("RWD activities are unavailable. Confirm the backend is running and Firebase staging is configured.");
+  }
+
+  const activities = await response.json();
+  return Array.isArray(activities) ? activities : [];
+}
+
 export async function fetchYouthDashboard(user) {
   if (!user) {
     throw new Error("A signed-in Firebase user is required.");
@@ -397,6 +408,34 @@ export async function fetchStaffServiceHoursForUser(user, userUID) {
 export async function updateStaffServiceHourRequestUrl(user, serviceHourRequestFormUrl) {
   const response = await fetchStaffEndpoint(user, "/api/staff/settings/service-hour-request-url", {
     body: JSON.stringify({ serviceHourRequestFormUrl }),
+    headers: {
+      "Content-Type": "application/json",
+    },
+    method: "PATCH",
+  });
+
+  return response.text();
+}
+
+export async function createStaffRwdActivity(user, activity) {
+  const response = await fetchStaffEndpoint(user, "/api/staff/rwd/activities", {
+    body: JSON.stringify(activity),
+    headers: {
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+  });
+
+  return response.text();
+}
+
+export async function updateStaffRwdActivity(user, rwdActivityId, updates) {
+  if (!rwdActivityId) {
+    throw new Error("RWD activity selection is required.");
+  }
+
+  const response = await fetchStaffEndpoint(user, `/api/staff/rwd/activities/${encodeURIComponent(rwdActivityId)}`, {
+    body: JSON.stringify(updates),
     headers: {
       "Content-Type": "application/json",
     },
