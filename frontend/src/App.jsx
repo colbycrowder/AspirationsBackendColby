@@ -3,6 +3,7 @@ import { appConfig } from "./config.js";
 import { useAuth } from "./auth/AuthContext.jsx";
 import { CredentialsPage } from "./components/CredentialsPage.jsx";
 import { NotificationsPage } from "./components/NotificationsPage.jsx";
+import { ProfileCompletionPage } from "./components/ProfileCompletionPage.jsx";
 import { ProgramsPage } from "./components/ProgramsPage.jsx";
 import { RwdLearningCenterPage } from "./components/RwdLearningCenterPage.jsx";
 import { ServiceHoursPage } from "./components/ServiceHoursPage.jsx";
@@ -12,6 +13,7 @@ const youthRoutes = [
   { path: "/login", label: "Login", title: "Login", public: true },
   { path: "/create-account", label: "Create Account", title: "Create Account", public: true },
   { path: "/dashboard", label: "Youth Dashboard", title: "Youth Dashboard", protected: true },
+  { path: "/profile", label: "Profile", title: "Profile", protected: true },
   { path: "/programs", label: "Programs", title: "Programs", protected: true },
   { path: "/credentials", label: "Credentials", title: "Credentials", protected: true },
   { path: "/rwd-learning-center", label: "RWD Learning Center", title: "RWD Learning Center", protected: true },
@@ -51,6 +53,11 @@ const pageDetails = {
     eyebrow: "Programs",
     description: "Future active-program browsing and self-enrollment screen.",
     items: ["List active programs", "View program details", "Enroll using verified Firebase UID"],
+  },
+  "/profile": {
+    eyebrow: "Youth Profile",
+    description: "Complete the private ASPN profile used by the dashboard and onboarding flow.",
+    items: ["Basic information", "School", "Graduation year", "Interests"],
   },
   "/credentials": {
     eyebrow: "Credentials",
@@ -214,6 +221,10 @@ function RouteContent({ route, detail, navigate }) {
 
   if (route.path === "/dashboard") {
     return <YouthDashboard />;
+  }
+
+  if (route.path === "/profile") {
+    return <ProfileCompletionPage navigate={navigate} />;
   }
 
   if (route.path === "/programs") {

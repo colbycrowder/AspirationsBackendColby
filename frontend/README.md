@@ -74,6 +74,8 @@ It includes Firebase Authentication login, account creation, logout, auth state,
 and protected route shell behavior.
 
 The youth dashboard connects to the backend dashboard endpoint.
+The youth Profile page uses protected self-service profile endpoints to create
+or update basic private profile fields.
 The youth Programs page connects to active-program listing and youth
 self-enrollment endpoints.
 The youth Credentials page uses the dashboard response to show earned and
@@ -127,6 +129,36 @@ user. Staff/admin role checks are intentionally deferred to a later checkpoint.
 If the backend is not running, or the signed-in Firebase user does not have a
 matching Firestore profile document, the dashboard shows a clear unavailable
 message instead of failing silently.
+
+## Local Profile Completion Test
+
+The Profile page reads:
+
+```text
+GET /api/me/profile
+Authorization: Bearer <Firebase ID token>
+```
+
+It saves basic youth-owned profile fields with:
+
+```text
+PATCH /api/me/profile
+Authorization: Bearer <Firebase ID token>
+Content-Type: application/json
+```
+
+The backend uses the verified Firebase UID. The frontend does not send UID,
+role, staff/admin status, verification flags, or public profile settings.
+
+To test locally:
+
+1. Start the backend with `./gradlew bootRun` from `../UserData`.
+2. Start the frontend with `npm run dev`.
+3. Sign in with Firebase.
+4. Open `Profile`.
+5. Fill first name, last name, school, graduation year, and optional interests.
+6. Save the profile.
+7. Open `Youth Dashboard` and confirm school/graduation year appear in the profile summary.
 
 ## Local Credentials Test
 

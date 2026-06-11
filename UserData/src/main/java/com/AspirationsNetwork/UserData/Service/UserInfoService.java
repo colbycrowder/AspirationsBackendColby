@@ -2,6 +2,7 @@ package com.AspirationsNetwork.UserData.Service;
 
 import com.AspirationsNetwork.UserData.DTO.StaffUserUpdateDTO;
 import com.AspirationsNetwork.UserData.DTO.UserProfileCreationDTO;
+import com.AspirationsNetwork.UserData.DTO.YouthProfileCompletionDTO;
 import com.AspirationsNetwork.UserData.Models.User;
 import com.google.api.core.ApiFuture;
 import com.google.cloud.firestore.DocumentReference;
@@ -121,6 +122,98 @@ public class UserInfoService {
 
         if (!updates.isEmpty()) {
             firestore.collection(COLLECTION_NAME).document(uid).update(updates).get();
+        }
+    }
+
+    public User completeYouthProfile(String uid, YouthProfileCompletionDTO dto)
+            throws ExecutionException, InterruptedException {
+        requireText(uid, "uid is required");
+        if (dto == null) {
+            throw new IllegalArgumentException("profile completion request is required");
+        }
+
+        User existingUser = getUser(uid);
+        if (existingUser == null) {
+            User user = new User();
+            user.setUid(uid);
+            user.setAccountType("member");
+            user.setRole("member");
+            user.setPublicProfile(false);
+            user.setYouthProfile(true);
+            user.setProfileStatus("pending_onboarding");
+            user.setStaffReviewRequired(true);
+            user.setStaffVerified(false);
+            user.setExternalConsentReceived(false);
+            user.setCredentialReviewAccess(false);
+            user.setAttendanceReviewAccess(false);
+            user.setServiceHourVerificationAccess(false);
+            applyYouthProfileFields(user, dto);
+            firestore.collection(COLLECTION_NAME).document(uid).set(user).get();
+            return user;
+        }
+
+        if (!existingUser.isYouthProfile() || isStaffOrAdmin(existingUser.getRole())) {
+            throw new ForbiddenAccessException("Only youth profiles can use self-service profile completion");
+        }
+
+        Map<String, Object> updates = new HashMap<>();
+        addStringIfPresent(updates, "firstName", dto.getFirstName());
+        addStringIfPresent(updates, "lastName", dto.getLastName());
+        addStringIfPresent(updates, "email", dto.getEmail());
+        addStringIfPresent(updates, "school", dto.getSchool());
+        addStringIfPresent(updates, "graduationYear", dto.getGraduationYear());
+        addListIfPresent(updates, "collegeInterests", dto.getCollegeInterests());
+        addListIfPresent(updates, "careerInterests", dto.getCareerInterests());
+        addListIfPresent(updates, "civicInterests", dto.getCivicInterests());
+        addListIfPresent(updates, "communityInterests", dto.getCommunityInterests());
+        addListIfPresent(updates, "publicServiceInterests", dto.getPublicServiceInterests());
+        updates.put("publicProfile", false);
+        updates.put("youthProfile", true);
+
+        if (existingUser.getProfileStatus() == null || existingUser.getProfileStatus().isBlank()) {
+            updates.put("profileStatus", "pending_onboarding");
+        }
+
+        firestore.collection(COLLECTION_NAME).document(uid).update(updates).get();
+        return getUser(uid);
+    }
+
+    private boolean isStaffOrAdmin(String role) {
+        return "staff".equals(role) || "admin".equals(role);
+    }
+
+    private void applyYouthProfileFields(User user, YouthProfileCompletionDTO dto) {
+        user.setFirstName(dto.getFirstName());
+        user.setLastName(dto.getLastName());
+        user.setEmail(dto.getEmail());
+        user.setSchool(dto.getSchool());
+        user.setGraduationYear(dto.getGraduationYear());
+        user.setCollegeInterests(listOrEmpty(dto.getCollegeInterests()));
+        user.setCareerInterests(listOrEmpty(dto.getCareerInterests()));
+        user.setCivicInterests(listOrEmpty(dto.getCivicInterests()));
+        user.setCommunityInterests(listOrEmpty(dto.getCommunityInterests()));
+        user.setPublicServiceInterests(listOrEmpty(dto.getPublicServiceInterests()));
+    }
+
+    private List<String> listOrEmpty(List<String> values) {
+        return values == null ? new ArrayList<>() : values;
+    }
+
+    private void addStringIfPresent(Map<String, Object> updates, String fieldName, String value) {
+        if (value != null) {
+            updates.put(fieldName, value);
+        }
+    }
+
+    private void addListIfPresent(Map<String, Object> updates, String fieldName, List<String> values) {
+        if (values != null) {
+            updates.put(fieldName, values);
+        }
+    }
+
+    private void requireText(String value, String message) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException(message);
         }
     }
 

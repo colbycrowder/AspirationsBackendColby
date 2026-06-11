@@ -43,6 +43,63 @@ export async function fetchYouthDashboard(user) {
   return dashboard;
 }
 
+export async function fetchMyProfile(user) {
+  if (!user) {
+    throw new Error("A signed-in Firebase user is required.");
+  }
+
+  const token = await user.getIdToken();
+  const response = await fetch(`${trimTrailingSlash(appConfig.apiBaseUrl)}/api/me/profile`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (response.status === 401) {
+    throw new Error("Firebase sign-in is required or the token was rejected.");
+  }
+
+  if (response.status === 404) {
+    return null;
+  }
+
+  if (!response.ok) {
+    throw new Error("Profile data is unavailable. Confirm the backend is running and try again.");
+  }
+
+  return response.json();
+}
+
+export async function saveMyProfile(user, profile) {
+  if (!user) {
+    throw new Error("Sign in before saving your profile.");
+  }
+
+  const token = await user.getIdToken();
+  const response = await fetch(`${trimTrailingSlash(appConfig.apiBaseUrl)}/api/me/profile`, {
+    body: JSON.stringify(profile),
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    method: "PATCH",
+  });
+
+  if (response.status === 401) {
+    throw new Error("Firebase sign-in is required or the token was rejected.");
+  }
+
+  if (response.status === 400) {
+    throw new Error("Profile could not be saved. Check the profile fields and try again.");
+  }
+
+  if (!response.ok) {
+    throw new Error("Profile could not be saved. Confirm the backend is running and try again.");
+  }
+
+  return response.json();
+}
+
 export async function enrollInProgram(user, programId) {
   if (!user) {
     throw new Error("Sign in before enrolling in a program.");

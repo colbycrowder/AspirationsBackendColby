@@ -15,6 +15,7 @@ import com.AspirationsNetwork.UserData.DTO.SystemSettingDTO;
 import com.AspirationsNetwork.UserData.DTO.UserProfileCreationDTO;
 import com.AspirationsNetwork.UserData.DTO.UserProfileWithCredentialsDTO;
 import com.AspirationsNetwork.UserData.DTO.YouthDashboardDTO;
+import com.AspirationsNetwork.UserData.DTO.YouthProfileCompletionDTO;
 import com.AspirationsNetwork.UserData.DTO.YouthSelfServiceProfileDTO;
 import com.AspirationsNetwork.UserData.Models.AttendanceRecord;
 import com.AspirationsNetwork.UserData.Models.Comment;
@@ -116,6 +117,32 @@ public class UserInfoController {
             return ResponseEntity.ok(response);
         } catch (UnauthorizedAccessException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @PatchMapping("/me/profile")
+    public ResponseEntity<YouthSelfServiceProfileDTO> completeMyProfile(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestBody YouthProfileCompletionDTO dto
+    ) {
+        try {
+            String userUID = authService.requireAuthenticatedUserUid(authorizationHeader);
+            User user = userInfoService.completeYouthProfile(userUID, dto);
+
+            YouthSelfServiceProfileDTO response = new YouthSelfServiceProfileDTO();
+            response.setUser(user);
+            response.setEarnedCredentials(credentialService.getEarnedCredentialsForUser(userUID));
+            response.setAttendanceRecords(attendanceService.getAttendanceRecordsForUser(userUID));
+            response.setServiceHourRecords(serviceHourService.getServiceHourRecordsForUser(userUID));
+            return ResponseEntity.ok(response);
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
         } catch (Exception e) {
             return ResponseEntity.internalServerError().build();
         }
