@@ -76,6 +76,8 @@ and protected route shell behavior.
 The youth dashboard connects to the backend dashboard endpoint.
 The youth Programs page connects to active-program listing and youth
 self-enrollment endpoints.
+The youth Credentials page uses the dashboard response to show earned and
+available credentials.
 
 Staff/admin pages do not connect to backend APIs yet, and the app does not
 perform role-based staff/admin authorization yet.
@@ -119,6 +121,27 @@ user. Staff/admin role checks are intentionally deferred to a later checkpoint.
 If the backend is not running, or the signed-in Firebase user does not have a
 matching Firestore profile document, the dashboard shows a clear unavailable
 message instead of failing silently.
+
+## Local Credentials Test
+
+The Credentials page uses:
+
+```text
+GET /api/me/dashboard
+Authorization: Bearer <Firebase ID token>
+```
+
+To test locally:
+
+1. Start the backend with `./gradlew bootRun` from `../UserData`.
+2. Start the frontend with `npm run dev`.
+3. Sign in with Firebase.
+4. Confirm the signed-in Firebase UID has a matching Firestore profile document.
+5. Open `Credentials`.
+6. Confirm earned credentials and available credentials render from the dashboard response.
+
+If the user has no earned credentials or no available credentials for enrolled
+programs, the page shows safe empty states.
 
 ## Local Programs and Enrollment Test
 

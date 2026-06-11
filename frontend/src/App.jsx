@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { appConfig } from "./config.js";
 import { useAuth } from "./auth/AuthContext.jsx";
+import { CredentialsPage } from "./components/CredentialsPage.jsx";
 import { ProgramsPage } from "./components/ProgramsPage.jsx";
 import { YouthDashboard } from "./components/YouthDashboard.jsx";
 
@@ -214,6 +215,10 @@ function RouteContent({ route, detail, navigate }) {
 
   if (route.path === "/programs") {
     return <ProgramsPage />;
+  }
+
+  if (route.path === "/credentials") {
+    return <CredentialsPage />;
   }
 
   return <PlaceholderPage route={route} detail={detail} />;
