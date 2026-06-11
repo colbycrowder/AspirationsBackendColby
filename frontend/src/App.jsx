@@ -7,8 +7,10 @@ import { ProfileCompletionPage } from "./components/ProfileCompletionPage.jsx";
 import { ProgramsPage } from "./components/ProgramsPage.jsx";
 import { RwdLearningCenterPage } from "./components/RwdLearningCenterPage.jsx";
 import { ServiceHoursPage } from "./components/ServiceHoursPage.jsx";
+import { StaffCredentialManagementPage } from "./components/StaffCredentialManagementPage.jsx";
 import { StaffMetricsDashboard } from "./components/StaffMetricsDashboard.jsx";
 import { StaffProgramManagementPage } from "./components/StaffProgramManagementPage.jsx";
+import { StaffServiceHourManagementPage } from "./components/StaffServiceHourManagementPage.jsx";
 import { StaffYouthManagementPage } from "./components/StaffYouthManagementPage.jsx";
 import { YouthDashboard } from "./components/YouthDashboard.jsx";
 import { ApiAccessError, fetchStaffMetrics } from "./api.js";
@@ -233,6 +235,10 @@ function RouteContent({ route, detail, navigate }) {
             <StaffYouthManagementPage />
           ) : route.path === "/staff/program-management" ? (
             <StaffProgramManagementPage />
+          ) : route.path === "/staff/credential-management" ? (
+            <StaffCredentialManagementPage />
+          ) : route.path === "/staff/service-hour-management" ? (
+            <StaffServiceHourManagementPage />
           ) : (
             <PlaceholderPage route={route} detail={detail} />
           )

@@ -348,6 +348,64 @@ export async function removeStaffProgramEnrollment(user, enrollmentId) {
   return response.text();
 }
 
+export async function createStaffCredentialDefinition(user, credentialDefinition) {
+  const response = await fetchStaffEndpoint(user, "/api/staff/credentials/definitions", {
+    body: JSON.stringify(credentialDefinition),
+    headers: {
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+  });
+
+  return response.text();
+}
+
+export async function awardStaffCredential(user, award) {
+  const response = await fetchStaffEndpoint(user, "/api/staff/credentials/award", {
+    body: JSON.stringify(award),
+    headers: {
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+  });
+
+  return response.text();
+}
+
+export async function createOrReviewStaffServiceHourRecord(user, serviceHourRecord) {
+  const response = await fetchStaffEndpoint(user, "/api/staff/service-hours", {
+    body: JSON.stringify(serviceHourRecord),
+    headers: {
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+  });
+
+  return response.text();
+}
+
+export async function fetchStaffServiceHoursForUser(user, userUID) {
+  if (!userUID) {
+    throw new Error("Youth UID is required before loading service-hour records.");
+  }
+
+  const response = await fetchStaffEndpoint(user, `/api/staff/service-hours/user/${encodeURIComponent(userUID)}`);
+  const serviceHours = await response.json();
+  return Array.isArray(serviceHours) ? serviceHours : [];
+}
+
+export async function updateStaffServiceHourRequestUrl(user, serviceHourRequestFormUrl) {
+  const response = await fetchStaffEndpoint(user, "/api/staff/settings/service-hour-request-url", {
+    body: JSON.stringify({ serviceHourRequestFormUrl }),
+    headers: {
+      "Content-Type": "application/json",
+    },
+    method: "PATCH",
+  });
+
+  return response.text();
+}
+
 async function fetchStaffEndpoint(user, path, options = {}) {
   if (!user) {
     throw new ApiAccessError("Sign in before opening staff/admin tools.", 401);
@@ -371,7 +429,11 @@ async function fetchStaffEndpoint(user, path, options = {}) {
   }
 
   if (!response.ok) {
-    throw new ApiAccessError("Staff/admin data is unavailable. Confirm the backend is running and try again.", response.status);
+    const message = await readResponseMessage(response);
+    throw new ApiAccessError(
+      message || "Staff/admin data is unavailable. Confirm the backend is running and try again.",
+      response.status
+    );
   }
 
   return response;

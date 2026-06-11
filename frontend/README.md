@@ -92,8 +92,12 @@ endpoint as the staff/admin authorization check.
 The staff Youth Management page uses protected youth review endpoints.
 The staff Program Management page uses protected program and enrollment
 management endpoints.
-Credential, attendance, service-hour, and RWD staff/admin pages remain
-placeholders for later Staff/Admin MVP checkpoints.
+The staff Credential Management page uses protected credential definition and
+manual award endpoints.
+The staff Service Hour Management page uses protected user-specific
+service-hour review and request URL settings endpoints.
+Attendance and RWD staff/admin pages remain placeholders for later Staff/Admin
+MVP checkpoints.
 
 ## Environment Variables
 
@@ -219,6 +223,60 @@ To test locally:
 
 The current backend exposes active program listing through `GET /api/programs`.
 Archived programs are not returned by that list after they are archived.
+
+## Local Staff Credential Management Test
+
+The Credential Management page calls:
+
+```text
+POST /api/staff/credentials/definitions
+POST /api/staff/credentials/award
+Authorization: Bearer <Firebase ID token>
+Content-Type: application/json
+```
+
+To test locally:
+
+1. Start the backend with `./gradlew bootRun` from `../UserData`.
+2. Start the frontend with `npm run dev`.
+3. Sign in with a Firebase user whose Firestore profile has `role = staff` or `role = admin`.
+4. Open `Credential Management`.
+5. Create a credential definition.
+6. Copy the returned credential definition ID.
+7. Enter a youth UID and the credential definition ID.
+8. Award the credential.
+9. Sign in as the youth or open the youth dashboard to confirm the earned credential appears.
+
+The current backend does not expose staff routes to list credential definitions
+or earned credentials. The staff UI therefore supports creation and manual
+award workflows, but not a searchable credential catalog yet.
+
+## Local Staff Service Hour Management Test
+
+The Service Hour Management page calls:
+
+```text
+POST /api/staff/service-hours
+GET /api/staff/service-hours/user/{userUID}
+PATCH /api/staff/settings/service-hour-request-url
+Authorization: Bearer <Firebase ID token>
+Content-Type: application/json
+```
+
+To test locally:
+
+1. Start the backend with `./gradlew bootRun` from `../UserData`.
+2. Start the frontend with `npm run dev`.
+3. Sign in with a Firebase user whose Firestore profile has `role = staff` or `role = admin`.
+4. Open `Service Hour Management`.
+5. Enter a youth UID and load records.
+6. Create or review a service-hour record for that youth.
+7. Reload records and confirm the saved record appears.
+8. Set or update the service-hour request form URL.
+9. Open the youth dashboard to confirm the URL appears there.
+
+The current backend exposes user-specific service-hour lookup only. It does not
+yet expose all-record or pending-record staff queue routes.
 
 ## Local Profile Completion Test
 

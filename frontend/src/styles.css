@@ -918,6 +918,34 @@ h3 {
   min-height: 18px;
 }
 
+.inline-field {
+  display: grid;
+  gap: 6px;
+  min-width: 240px;
+  font-weight: 800;
+  color: #31475d;
+}
+
+.inline-field.wide {
+  flex: 1 1 420px;
+}
+
+.inline-field input {
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 10px;
+  font: inherit;
+  color: #1c2430;
+  background: #ffffff;
+  border: 1px solid #b9c8d6;
+  border-radius: 7px;
+}
+
+.inline-field input:focus {
+  outline: 3px solid #ccebe5;
+  border-color: #3f7e6f;
+}
+
 .full-width-field {
   grid-column: 1 / -1;
 }
