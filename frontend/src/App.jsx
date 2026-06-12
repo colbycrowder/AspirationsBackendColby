@@ -1,18 +1,22 @@
 import { useEffect, useMemo, useState } from "react";
 import { appConfig } from "./config.js";
 import { useAuth } from "./auth/AuthContext.jsx";
+import { AttendanceManagement } from "./components/AttendanceManagement.jsx";
+import { CredentialManagement } from "./components/CredentialManagement.jsx";
 import { CredentialsPage } from "./components/CredentialsPage.jsx";
 import { NotificationsPage } from "./components/NotificationsPage.jsx";
+import { OperationsReporting } from "./components/OperationsReporting.jsx";
 import { ProfileCompletionPage } from "./components/ProfileCompletionPage.jsx";
+import { ProgramManagement } from "./components/ProgramManagement.jsx";
 import { ProgramsPage } from "./components/ProgramsPage.jsx";
 import { RwdLearningCenterPage } from "./components/RwdLearningCenterPage.jsx";
 import { ServiceHoursPage } from "./components/ServiceHoursPage.jsx";
-import { StaffCredentialManagementPage } from "./components/StaffCredentialManagementPage.jsx";
+import { ServiceHoursManagement } from "./components/ServiceHoursManagement.jsx";
+import { StaffDashboard } from "./components/StaffDashboard.jsx";
 import { StaffMetricsDashboard } from "./components/StaffMetricsDashboard.jsx";
-import { StaffProgramManagementPage } from "./components/StaffProgramManagementPage.jsx";
 import { StaffRwdManagementPage } from "./components/StaffRwdManagementPage.jsx";
-import { StaffServiceHourManagementPage } from "./components/StaffServiceHourManagementPage.jsx";
 import { StaffYouthManagementPage } from "./components/StaffYouthManagementPage.jsx";
+import { UserManagement } from "./components/UserManagement.jsx";
 import { YouthDashboard } from "./components/YouthDashboard.jsx";
 import { ApiAccessError, fetchStaffMetrics } from "./api.js";
 
@@ -31,12 +35,14 @@ const youthRoutes = [
 
 const staffRoutes = [
   { path: "/staff", label: "Staff Dashboard", title: "Staff Dashboard", protected: true, staff: true },
+  { path: "/staff/users", label: "User Management", title: "User Management", protected: true, staff: true },
   { path: "/staff/youth-management", label: "Youth Management", title: "Youth Management", protected: true, staff: true },
   { path: "/staff/program-management", label: "Program Management", title: "Program Management", protected: true, staff: true },
   { path: "/staff/credential-management", label: "Credential Management", title: "Credential Management", protected: true, staff: true },
   { path: "/staff/rwd-management", label: "RWD Management", title: "RWD Management", protected: true, staff: true },
   { path: "/staff/attendance-management", label: "Attendance Management", title: "Attendance Management", protected: true, staff: true },
   { path: "/staff/service-hour-management", label: "Service Hour Management", title: "Service Hour Management", protected: true, staff: true },
+  { path: "/staff/operations-reporting", label: "Operations Reporting", title: "Operations Reporting", protected: true, staff: true },
   { path: "/staff/metrics", label: "Metrics", title: "Metrics", protected: true, staff: true },
 ];
 
@@ -236,18 +242,26 @@ function RouteContent({ route, detail, navigate }) {
     return (
       <StaffGate route={route}>
         {(metrics) =>
-          route.path === "/staff" || route.path === "/staff/metrics" ? (
+          route.path === "/staff" ? (
+            <StaffDashboard metrics={metrics} navigate={navigate} />
+          ) : route.path === "/staff/metrics" ? (
             <StaffMetricsDashboard metrics={metrics} />
+          ) : route.path === "/staff/users" ? (
+            <UserManagement />
           ) : route.path === "/staff/youth-management" ? (
             <StaffYouthManagementPage />
           ) : route.path === "/staff/program-management" ? (
-            <StaffProgramManagementPage />
+            <ProgramManagement />
           ) : route.path === "/staff/credential-management" ? (
-            <StaffCredentialManagementPage />
+            <CredentialManagement />
           ) : route.path === "/staff/rwd-management" ? (
             <StaffRwdManagementPage />
+          ) : route.path === "/staff/attendance-management" ? (
+            <AttendanceManagement />
           ) : route.path === "/staff/service-hour-management" ? (
-            <StaffServiceHourManagementPage />
+            <ServiceHoursManagement />
+          ) : route.path === "/staff/operations-reporting" ? (
+            <OperationsReporting />
           ) : (
             <PlaceholderPage route={route} detail={detail} />
           )

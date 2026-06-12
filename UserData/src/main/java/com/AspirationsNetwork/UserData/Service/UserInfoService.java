@@ -2,6 +2,7 @@ package com.AspirationsNetwork.UserData.Service;
 
 import com.AspirationsNetwork.UserData.DTO.StaffUserUpdateDTO;
 import com.AspirationsNetwork.UserData.DTO.UserProfileCreationDTO;
+import com.AspirationsNetwork.UserData.DTO.UserTotalsDTO;
 import com.AspirationsNetwork.UserData.DTO.YouthProfileCompletionDTO;
 import com.AspirationsNetwork.UserData.Models.User;
 import com.google.api.core.ApiFuture;
@@ -101,6 +102,61 @@ public class UserInfoService {
         return user;
     }
 
+    public List<User> getUsersForStaff(String role, Boolean active, Boolean youthProfile, String programId)
+            throws ExecutionException, InterruptedException {
+        ApiFuture<QuerySnapshot> future = firestore.collection(COLLECTION_NAME).get();
+
+        List<User> users = new ArrayList<>();
+        for (QueryDocumentSnapshot document : future.get().getDocuments()) {
+            User user = document.toObject(User.class);
+            if (user != null && matchesStaffUserFilters(user, role, active, youthProfile, programId)) {
+                users.add(user);
+            }
+        }
+        return users;
+    }
+
+    public User getUserForStaff(String uid) throws ExecutionException, InterruptedException {
+        requireText(uid, "uid is required");
+        return getUser(uid);
+    }
+
+    public UserTotalsDTO getUserTotalsForStaff() throws ExecutionException, InterruptedException {
+        UserTotalsDTO totals = new UserTotalsDTO();
+        ApiFuture<QuerySnapshot> future = firestore.collection(COLLECTION_NAME).get();
+
+        for (QueryDocumentSnapshot document : future.get().getDocuments()) {
+            User user = document.toObject(User.class);
+            if (user == null) {
+                continue;
+            }
+
+            totals.setTotalUsers(totals.getTotalUsers() + 1);
+            if ("active".equalsIgnoreCase(user.getProfileStatus())) {
+                totals.setActiveUsers(totals.getActiveUsers() + 1);
+            }
+            if ("inactive".equalsIgnoreCase(user.getProfileStatus())) {
+                totals.setInactiveUsers(totals.getInactiveUsers() + 1);
+            }
+            if (user.isYouthProfile()) {
+                totals.setYouthUsers(totals.getYouthUsers() + 1);
+            }
+
+            String role = user.getRole() == null ? "" : user.getRole().toLowerCase();
+            if ("staff".equals(role) || "admin".equals(role)) {
+                totals.setStaffUsers(totals.getStaffUsers() + 1);
+            } else if ("educator".equals(role)) {
+                totals.setEducatorUsers(totals.getEducatorUsers() + 1);
+            } else if ("partner".equals(role)) {
+                totals.setPartnerUsers(totals.getPartnerUsers() + 1);
+            } else if ("government".equals(role)) {
+                totals.setGovernmentUsers(totals.getGovernmentUsers() + 1);
+            }
+        }
+
+        return totals;
+    }
+
     public void updateYouthUserForStaff(String uid, StaffUserUpdateDTO dto) throws ExecutionException, InterruptedException {
         User user = getYouthUserForStaff(uid);
         if (user == null) {
@@ -125,6 +181,78 @@ public class UserInfoService {
         if (!updates.isEmpty()) {
             firestore.collection(COLLECTION_NAME).document(uid).update(updates).get();
         }
+    }
+
+    public void updateUserForStaff(String uid, StaffUserUpdateDTO dto) throws ExecutionException, InterruptedException {
+        requireText(uid, "uid is required");
+        if (dto == null) {
+            throw new IllegalArgumentException("user update request is required");
+        }
+
+        User user = getUserForStaff(uid);
+        if (user == null) {
+            throw new IllegalArgumentException("User profile does not exist");
+        }
+
+        Map<String, Object> updates = new HashMap<>();
+        if (dto.getProfileStatus() != null) {
+            updates.put("profileStatus", dto.getProfileStatus());
+        }
+        if (dto.getProgramIds() != null) {
+            updates.put("programIds", dto.getProgramIds());
+        }
+        if (dto.getStaffReviewRequired() != null) {
+            updates.put("staffReviewRequired", dto.getStaffReviewRequired());
+        }
+        if (dto.getStaffVerified() != null) {
+            updates.put("staffVerified", dto.getStaffVerified());
+        }
+
+        if (!updates.isEmpty()) {
+            firestore.collection(COLLECTION_NAME).document(uid).update(updates).get();
+        }
+    }
+
+    public void activateUserForStaff(String uid) throws ExecutionException, InterruptedException {
+        setProfileStatusForStaff(uid, "active");
+    }
+
+    public void deactivateUserForStaff(String uid) throws ExecutionException, InterruptedException {
+        setProfileStatusForStaff(uid, "inactive");
+    }
+
+    private void setProfileStatusForStaff(String uid, String profileStatus)
+            throws ExecutionException, InterruptedException {
+        requireText(uid, "uid is required");
+        if (getUserForStaff(uid) == null) {
+            throw new IllegalArgumentException("User profile does not exist");
+        }
+        firestore.collection(COLLECTION_NAME).document(uid).update("profileStatus", profileStatus).get();
+    }
+
+    private boolean matchesStaffUserFilters(
+            User user,
+            String role,
+            Boolean active,
+            Boolean youthProfile,
+            String programId
+    ) {
+        if (role != null && !role.isBlank() && !role.equalsIgnoreCase(user.getRole())) {
+            return false;
+        }
+        if (active != null) {
+            String expectedStatus = active ? "active" : "inactive";
+            if (!expectedStatus.equalsIgnoreCase(user.getProfileStatus())) {
+                return false;
+            }
+        }
+        if (youthProfile != null && youthProfile != user.isYouthProfile()) {
+            return false;
+        }
+        return programId == null || programId.isBlank()
+                || (user.getProgramIds() != null && user.getProgramIds().contains(programId))
+                || (user.getProgramParticipationIds() != null
+                && user.getProgramParticipationIds().contains(programId));
     }
 
     public User completeYouthProfile(String uid, YouthProfileCompletionDTO dto) throws Exception {

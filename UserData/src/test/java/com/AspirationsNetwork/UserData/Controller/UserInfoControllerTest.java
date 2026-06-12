@@ -27,6 +27,7 @@ import com.AspirationsNetwork.UserData.DTO.StaffOperationReportingDTO;
 import com.AspirationsNetwork.UserData.DTO.StaffUserUpdateDTO;
 import com.AspirationsNetwork.UserData.DTO.UserProfileCreationDTO;
 import com.AspirationsNetwork.UserData.DTO.UserProfileWithCredentialsDTO;
+import com.AspirationsNetwork.UserData.DTO.UserTotalsDTO;
 import com.AspirationsNetwork.UserData.DTO.YouthDashboardDTO;
 import com.AspirationsNetwork.UserData.DTO.YouthSelfServiceProfileDTO;
 import com.AspirationsNetwork.UserData.Models.PlatformEventType;
@@ -1131,6 +1132,101 @@ class UserInfoControllerTest {
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals(1, response.getBody().size());
         assertEquals("youth-123", response.getBody().get(0).getUid());
+    }
+
+    @Test
+    void getUsersForStaffReturnsFilteredUsersForStaffToken() throws Exception {
+        User user = new User();
+        user.setUid("user-123");
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+        when(userInfoService.getUsersForStaff("member", true, true, "program-123"))
+                .thenReturn(List.of(user));
+
+        ResponseEntity<List<User>> response = controller.getUsersForStaff(
+                "Bearer staff-token",
+                "member",
+                true,
+                true,
+                "program-123"
+        );
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("user-123", response.getBody().get(0).getUid());
+    }
+
+    @Test
+    void getUserForStaffReturnsUserDetail() throws Exception {
+        User user = new User();
+        user.setUid("user-123");
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+        when(userInfoService.getUserForStaff("user-123")).thenReturn(user);
+
+        ResponseEntity<User> response = controller.getUserForStaff("Bearer staff-token", "user-123");
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("user-123", response.getBody().getUid());
+    }
+
+    @Test
+    void getUserTotalsForStaffReturnsTotals() throws Exception {
+        UserTotalsDTO totals = new UserTotalsDTO();
+        totals.setTotalUsers(10);
+        totals.setActiveUsers(7);
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+        when(userInfoService.getUserTotalsForStaff()).thenReturn(totals);
+
+        ResponseEntity<UserTotalsDTO> response = controller.getUserTotalsForStaff("Bearer staff-token");
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(10, response.getBody().getTotalUsers());
+        assertEquals(7, response.getBody().getActiveUsers());
+    }
+
+    @Test
+    void updateUserForStaffReturnsUpdatedForStaffToken() throws Exception {
+        StaffUserUpdateDTO dto = new StaffUserUpdateDTO();
+        dto.setProfileStatus("active");
+        dto.setStaffVerified(true);
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+
+        ResponseEntity<String> response = controller.updateUserForStaff("Bearer staff-token", "user-123", dto);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("Updated", response.getBody());
+        verify(userInfoService).updateUserForStaff("user-123", dto);
+    }
+
+    @Test
+    void activateAndDeactivateUserForStaffUseProfileStatusWorkflow() throws Exception {
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+
+        ResponseEntity<String> activateResponse = controller.activateUserForStaff("Bearer staff-token", "user-123");
+        ResponseEntity<String> deactivateResponse = controller.deactivateUserForStaff("Bearer staff-token", "user-123");
+
+        assertEquals(HttpStatus.OK, activateResponse.getStatusCode());
+        assertEquals("Activated", activateResponse.getBody());
+        assertEquals(HttpStatus.OK, deactivateResponse.getStatusCode());
+        assertEquals("Deactivated", deactivateResponse.getBody());
+        verify(userInfoService).activateUserForStaff("user-123");
+        verify(userInfoService).deactivateUserForStaff("user-123");
+    }
+
+    @Test
+    void getUsersForStaffReturnsForbiddenForNonStaffUser() throws Exception {
+        doThrow(new ForbiddenAccessException("Staff role is required"))
+                .when(authService)
+                .requireStaff("Bearer youth-token");
+
+        ResponseEntity<List<User>> response = controller.getUsersForStaff(
+                "Bearer youth-token",
+                null,
+                null,
+                null,
+                null
+        );
+
+        assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
+        assertNull(response.getBody());
     }
 
     @Test

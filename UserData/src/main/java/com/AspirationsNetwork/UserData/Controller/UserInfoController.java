@@ -27,6 +27,7 @@ import com.AspirationsNetwork.UserData.DTO.StaffUserUpdateDTO;
 import com.AspirationsNetwork.UserData.DTO.SystemSettingDTO;
 import com.AspirationsNetwork.UserData.DTO.UserProfileCreationDTO;
 import com.AspirationsNetwork.UserData.DTO.UserProfileWithCredentialsDTO;
+import com.AspirationsNetwork.UserData.DTO.UserTotalsDTO;
 import com.AspirationsNetwork.UserData.DTO.YouthDashboardDTO;
 import com.AspirationsNetwork.UserData.DTO.YouthProfileCompletionDTO;
 import com.AspirationsNetwork.UserData.DTO.YouthSelfServiceProfileDTO;
@@ -1136,6 +1137,155 @@ public class UserInfoController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         } catch (Exception e) {
             return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @GetMapping("/staff/users")
+    public ResponseEntity<List<User>> getUsersForStaff(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestParam(value = "role", required = false) String role,
+            @RequestParam(value = "active", required = false) Boolean active,
+            @RequestParam(value = "youthProfile", required = false) Boolean youthProfile,
+            @RequestParam(value = "programId", required = false) String programId
+    ) {
+        try {
+            authService.requireStaff(authorizationHeader);
+            return ResponseEntity.ok(userInfoService.getUsersForStaff(role, active, youthProfile, programId));
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @GetMapping("/staff/users/totals")
+    public ResponseEntity<UserTotalsDTO> getUserTotalsForStaff(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader
+    ) {
+        try {
+            authService.requireStaff(authorizationHeader);
+            return ResponseEntity.ok(userInfoService.getUserTotalsForStaff());
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @GetMapping("/staff/users/{userUID}")
+    public ResponseEntity<User> getUserForStaff(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @PathVariable String userUID
+    ) {
+        try {
+            authService.requireStaff(authorizationHeader);
+            User user = userInfoService.getUserForStaff(userUID);
+            if (user == null) {
+                return ResponseEntity.notFound().build();
+            }
+            return ResponseEntity.ok(user);
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @PatchMapping("/staff/users/{userUID}")
+    public ResponseEntity<String> updateUserForStaff(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @PathVariable String userUID,
+            @RequestBody StaffUserUpdateDTO dto
+    ) {
+        try {
+            String staffUID = authService.requireStaff(authorizationHeader);
+            userInfoService.updateUserForStaff(userUID, dto);
+            staffOperationEventService.trackOperationSafely(
+                    staffUID,
+                    StaffOperationEventService.YOUTH_PROFILE_REVIEWED,
+                    "userProfile",
+                    userUID,
+                    userUID,
+                    metadata(
+                            "profileStatus", dto == null ? null : dto.getProfileStatus(),
+                            "staffVerified", dto == null ? null : dto.getStaffVerified()
+                    )
+            );
+            return ResponseEntity.ok("Updated");
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Error updating user");
+        }
+    }
+
+    @PatchMapping("/staff/users/{userUID}/activate")
+    public ResponseEntity<String> activateUserForStaff(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @PathVariable String userUID
+    ) {
+        try {
+            String staffUID = authService.requireStaff(authorizationHeader);
+            userInfoService.activateUserForStaff(userUID);
+            staffOperationEventService.trackOperationSafely(
+                    staffUID,
+                    StaffOperationEventService.YOUTH_PROFILE_REVIEWED,
+                    "userProfile",
+                    userUID,
+                    userUID,
+                    metadata("profileStatus", "active")
+            );
+            return ResponseEntity.ok("Activated");
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Error activating user");
+        }
+    }
+
+    @PatchMapping("/staff/users/{userUID}/deactivate")
+    public ResponseEntity<String> deactivateUserForStaff(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @PathVariable String userUID
+    ) {
+        try {
+            String staffUID = authService.requireStaff(authorizationHeader);
+            userInfoService.deactivateUserForStaff(userUID);
+            staffOperationEventService.trackOperationSafely(
+                    staffUID,
+                    StaffOperationEventService.YOUTH_PROFILE_REVIEWED,
+                    "userProfile",
+                    userUID,
+                    userUID,
+                    metadata("profileStatus", "inactive")
+            );
+            return ResponseEntity.ok("Deactivated");
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Error deactivating user");
         }
     }
 

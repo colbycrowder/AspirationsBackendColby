@@ -510,6 +510,95 @@ h3 {
   color: #607386;
 }
 
+.staff-action-grid,
+.staff-inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.staff-detail-panel {
+  display: grid;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #dfe7ef;
+}
+
+.compact-form {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.compact-form input,
+.compact-form select,
+.compact-form textarea,
+.staff-search-input {
+  width: 100%;
+  min-width: 0;
+  padding: 10px 11px;
+  font: inherit;
+  color: #1c2430;
+  background: #ffffff;
+  border: 1px solid #cfdbe6;
+  border-radius: 7px;
+}
+
+.staff-detail-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.staff-detail-list div {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.staff-detail-list dt {
+  font-weight: 800;
+  color: #31475d;
+}
+
+.staff-detail-list dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: #607386;
+}
+
+.unstyled-button {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  padding: 0;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+}
+
+.text-action.danger {
+  color: #7a1f1f;
+  background: #f8dddd;
+}
+
+.staff-mini-table {
+  display: grid;
+  gap: 8px;
+}
+
+.staff-mini-table div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid #e8eef4;
+}
+
 .credential-summary-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));

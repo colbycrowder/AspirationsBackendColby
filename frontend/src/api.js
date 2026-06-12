@@ -287,10 +287,92 @@ export async function fetchStaffMetrics(user) {
   return metrics && typeof metrics === "object" ? metrics : {};
 }
 
+export async function fetchStaffOperationsReporting(user) {
+  const response = await fetchStaffEndpoint(user, "/api/staff/operations/reporting");
+  const report = await response.json();
+  return report && typeof report === "object" ? report : {};
+}
+
 export async function fetchStaffYouthUsers(user) {
   const response = await fetchStaffEndpoint(user, "/api/staff/users/youth");
   const users = await response.json();
   return Array.isArray(users) ? users : [];
+}
+
+export async function fetchStaffUsers(user, filters = {}) {
+  const params = new URLSearchParams();
+  if (filters.role) {
+    params.set("role", filters.role);
+  }
+  if (filters.active !== undefined && filters.active !== "") {
+    params.set("active", String(filters.active));
+  }
+  if (filters.youthProfile !== undefined && filters.youthProfile !== "") {
+    params.set("youthProfile", String(filters.youthProfile));
+  }
+  if (filters.programId) {
+    params.set("programId", filters.programId);
+  }
+
+  const query = params.toString();
+  const response = await fetchStaffEndpoint(user, `/api/staff/users${query ? `?${query}` : ""}`);
+  const users = await response.json();
+  return Array.isArray(users) ? users : [];
+}
+
+export async function fetchStaffUser(user, userUID) {
+  if (!userUID) {
+    throw new Error("User selection is required.");
+  }
+
+  const response = await fetchStaffEndpoint(user, `/api/staff/users/${encodeURIComponent(userUID)}`);
+  return response.json();
+}
+
+export async function fetchStaffUserTotals(user) {
+  const response = await fetchStaffEndpoint(user, "/api/staff/users/totals");
+  const totals = await response.json();
+  return totals && typeof totals === "object" ? totals : {};
+}
+
+export async function updateStaffUser(user, userUID, updates) {
+  if (!userUID) {
+    throw new Error("User selection is required.");
+  }
+
+  const response = await fetchStaffEndpoint(user, `/api/staff/users/${encodeURIComponent(userUID)}`, {
+    body: JSON.stringify(updates),
+    headers: {
+      "Content-Type": "application/json",
+    },
+    method: "PATCH",
+  });
+
+  return response.text();
+}
+
+export async function activateStaffUser(user, userUID) {
+  if (!userUID) {
+    throw new Error("User selection is required.");
+  }
+
+  const response = await fetchStaffEndpoint(user, `/api/staff/users/${encodeURIComponent(userUID)}/activate`, {
+    method: "PATCH",
+  });
+
+  return response.text();
+}
+
+export async function deactivateStaffUser(user, userUID) {
+  if (!userUID) {
+    throw new Error("User selection is required.");
+  }
+
+  const response = await fetchStaffEndpoint(user, `/api/staff/users/${encodeURIComponent(userUID)}/deactivate`, {
+    method: "PATCH",
+  });
+
+  return response.text();
 }
 
 export async function fetchStaffYouthUser(user, userUID) {
@@ -346,6 +428,60 @@ export async function updateStaffProgram(user, programId, updates) {
   return response.text();
 }
 
+export async function fetchStaffPrograms(user, filters = {}) {
+  const params = new URLSearchParams();
+  if (filters.active !== undefined && filters.active !== "") {
+    params.set("active", String(filters.active));
+  }
+  if (filters.programType) {
+    params.set("programType", filters.programType);
+  }
+
+  const query = params.toString();
+  const response = await fetchStaffEndpoint(user, `/api/staff/programs${query ? `?${query}` : ""}`);
+  const programs = await response.json();
+  return Array.isArray(programs) ? programs : [];
+}
+
+export async function fetchStaffProgramDetail(user, programId) {
+  if (!programId) {
+    throw new Error("Program selection is required.");
+  }
+
+  const response = await fetchStaffEndpoint(user, `/api/staff/programs/${encodeURIComponent(programId)}`);
+  return response.json();
+}
+
+export async function fetchStaffProgramTotals(user) {
+  const response = await fetchStaffEndpoint(user, "/api/staff/programs/totals");
+  const totals = await response.json();
+  return totals && typeof totals === "object" ? totals : {};
+}
+
+export async function archiveStaffProgram(user, programId) {
+  if (!programId) {
+    throw new Error("Program selection is required.");
+  }
+
+  const response = await fetchStaffEndpoint(user, `/api/staff/programs/${encodeURIComponent(programId)}/archive`, {
+    method: "PATCH",
+  });
+
+  return response.text();
+}
+
+export async function restoreStaffProgram(user, programId) {
+  if (!programId) {
+    throw new Error("Program selection is required.");
+  }
+
+  const response = await fetchStaffEndpoint(user, `/api/staff/programs/${encodeURIComponent(programId)}/restore`, {
+    method: "PATCH",
+  });
+
+  return response.text();
+}
+
 export async function fetchStaffProgramEnrollments(user) {
   const response = await fetchStaffEndpoint(user, "/api/staff/program-enrollments");
   const enrollments = await response.json();
@@ -393,6 +529,90 @@ export async function createStaffCredentialDefinition(user, credentialDefinition
   return response.text();
 }
 
+export async function fetchStaffCredentialDefinitions(user, filters = {}) {
+  const params = new URLSearchParams();
+  if (filters.category) {
+    params.set("category", filters.category);
+  }
+  if (filters.active !== undefined && filters.active !== "") {
+    params.set("active", String(filters.active));
+  }
+  if (filters.programId) {
+    params.set("programId", filters.programId);
+  }
+
+  const query = params.toString();
+  const response = await fetchStaffEndpoint(
+    user,
+    `/api/staff/credentials/definitions${query ? `?${query}` : ""}`
+  );
+  const definitions = await response.json();
+  return Array.isArray(definitions) ? definitions : [];
+}
+
+export async function fetchStaffCredentialTotals(user, filters = {}) {
+  const params = new URLSearchParams();
+  if (filters.category) {
+    params.set("category", filters.category);
+  }
+  if (filters.programId) {
+    params.set("programId", filters.programId);
+  }
+
+  const query = params.toString();
+  const response = await fetchStaffEndpoint(user, `/api/staff/credentials/totals${query ? `?${query}` : ""}`);
+  const totals = await response.json();
+  return totals && typeof totals === "object" ? totals : {};
+}
+
+export async function updateStaffCredentialDefinition(user, credentialId, updates) {
+  if (!credentialId) {
+    throw new Error("Credential selection is required.");
+  }
+
+  const response = await fetchStaffEndpoint(
+    user,
+    `/api/staff/credentials/definitions/${encodeURIComponent(credentialId)}`,
+    {
+      body: JSON.stringify(updates),
+      headers: {
+        "Content-Type": "application/json",
+      },
+      method: "PATCH",
+    }
+  );
+
+  return response.text();
+}
+
+export async function archiveStaffCredentialDefinition(user, credentialId) {
+  if (!credentialId) {
+    throw new Error("Credential selection is required.");
+  }
+
+  const response = await fetchStaffEndpoint(
+    user,
+    `/api/staff/credentials/definitions/${encodeURIComponent(credentialId)}/archive`,
+    { method: "PATCH" }
+  );
+
+  return response.text();
+}
+
+export async function restoreStaffCredentialDefinition(user, credentialId) {
+  if (!credentialId) {
+    throw new Error("Credential selection is required.");
+  }
+
+  const response = await fetchStaffEndpoint(
+    user,
+    `/api/staff/credentials/definitions/${encodeURIComponent(credentialId)}/restore`,
+    { method: "PATCH" }
+  );
+
+  return response.text();
+}
+
 export async function awardStaffCredential(user, award) {
   const response = await fetchStaffEndpoint(user, "/api/staff/credentials/award", {
     body: JSON.stringify(award),
@@ -400,6 +620,82 @@ export async function awardStaffCredential(user, award) {
       "Content-Type": "application/json",
     },
     method: "POST",
+  });
+
+  return response.text();
+}
+
+export async function createStaffAttendanceRecord(user, attendanceRecord) {
+  const response = await fetchStaffEndpoint(user, "/api/staff/attendance", {
+    body: JSON.stringify(attendanceRecord),
+    headers: {
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+  });
+
+  return response.text();
+}
+
+export async function fetchStaffAttendanceRecords(user, filters = {}) {
+  const params = new URLSearchParams();
+  if (filters.userUID) {
+    params.set("userUID", filters.userUID);
+  }
+  if (filters.programID) {
+    params.set("programID", filters.programID);
+  }
+  if (filters.eventDate) {
+    params.set("eventDate", filters.eventDate);
+  }
+
+  const query = params.toString();
+  const response = await fetchStaffEndpoint(user, `/api/staff/attendance${query ? `?${query}` : ""}`);
+  const records = await response.json();
+  return Array.isArray(records) ? records : [];
+}
+
+export async function fetchStaffAttendanceTotals(user, filters = {}) {
+  const params = new URLSearchParams();
+  if (filters.userUID) {
+    params.set("userUID", filters.userUID);
+  }
+  if (filters.programID) {
+    params.set("programID", filters.programID);
+  }
+  if (filters.eventDate) {
+    params.set("eventDate", filters.eventDate);
+  }
+
+  const query = params.toString();
+  const response = await fetchStaffEndpoint(user, `/api/staff/attendance/totals${query ? `?${query}` : ""}`);
+  const totals = await response.json();
+  return totals && typeof totals === "object" ? totals : {};
+}
+
+export async function updateStaffAttendanceRecord(user, attendanceRecordId, updates) {
+  if (!attendanceRecordId) {
+    throw new Error("Attendance record selection is required.");
+  }
+
+  const response = await fetchStaffEndpoint(user, `/api/staff/attendance/${encodeURIComponent(attendanceRecordId)}`, {
+    body: JSON.stringify(updates),
+    headers: {
+      "Content-Type": "application/json",
+    },
+    method: "PATCH",
+  });
+
+  return response.text();
+}
+
+export async function deleteStaffAttendanceRecord(user, attendanceRecordId) {
+  if (!attendanceRecordId) {
+    throw new Error("Attendance record selection is required.");
+  }
+
+  const response = await fetchStaffEndpoint(user, `/api/staff/attendance/${encodeURIComponent(attendanceRecordId)}`, {
+    method: "DELETE",
   });
 
   return response.text();
@@ -417,6 +713,48 @@ export async function createOrReviewStaffServiceHourRecord(user, serviceHourReco
   return response.text();
 }
 
+export async function fetchStaffServiceHours(user, filters = {}) {
+  const params = new URLSearchParams();
+  if (filters.userUID) {
+    params.set("userUID", filters.userUID);
+  }
+  if (filters.status) {
+    params.set("status", filters.status);
+  }
+  if (filters.programId) {
+    params.set("programId", filters.programId);
+  }
+  if (filters.serviceDate) {
+    params.set("serviceDate", filters.serviceDate);
+  }
+
+  const query = params.toString();
+  const response = await fetchStaffEndpoint(user, `/api/staff/service-hours${query ? `?${query}` : ""}`);
+  const serviceHours = await response.json();
+  return Array.isArray(serviceHours) ? serviceHours : [];
+}
+
+export async function fetchStaffServiceHourTotals(user, filters = {}) {
+  const params = new URLSearchParams();
+  if (filters.userUID) {
+    params.set("userUID", filters.userUID);
+  }
+  if (filters.status) {
+    params.set("status", filters.status);
+  }
+  if (filters.programId) {
+    params.set("programId", filters.programId);
+  }
+  if (filters.serviceDate) {
+    params.set("serviceDate", filters.serviceDate);
+  }
+
+  const query = params.toString();
+  const response = await fetchStaffEndpoint(user, `/api/staff/service-hours/totals${query ? `?${query}` : ""}`);
+  const totals = await response.json();
+  return totals && typeof totals === "object" ? totals : {};
+}
+
 export async function fetchStaffServiceHoursForUser(user, userUID) {
   if (!userUID) {
     throw new Error("Youth UID is required before loading service-hour records.");
@@ -425,6 +763,68 @@ export async function fetchStaffServiceHoursForUser(user, userUID) {
   const response = await fetchStaffEndpoint(user, `/api/staff/service-hours/user/${encodeURIComponent(userUID)}`);
   const serviceHours = await response.json();
   return Array.isArray(serviceHours) ? serviceHours : [];
+}
+
+export async function updateStaffServiceHourStatus(user, serviceHourRecordId, verificationStatus) {
+  if (!serviceHourRecordId) {
+    throw new Error("Service-hour record selection is required.");
+  }
+
+  const response = await fetchStaffEndpoint(
+    user,
+    `/api/staff/service-hours/${encodeURIComponent(serviceHourRecordId)}/status`,
+    {
+      body: JSON.stringify({ verificationStatus }),
+      headers: {
+        "Content-Type": "application/json",
+      },
+      method: "PATCH",
+    }
+  );
+
+  return response.text();
+}
+
+export async function approveStaffServiceHour(user, serviceHourRecordId) {
+  if (!serviceHourRecordId) {
+    throw new Error("Service-hour record selection is required.");
+  }
+
+  const response = await fetchStaffEndpoint(
+    user,
+    `/api/staff/service-hours/${encodeURIComponent(serviceHourRecordId)}/approve`,
+    { method: "PATCH" }
+  );
+
+  return response.text();
+}
+
+export async function rejectStaffServiceHour(user, serviceHourRecordId) {
+  if (!serviceHourRecordId) {
+    throw new Error("Service-hour record selection is required.");
+  }
+
+  const response = await fetchStaffEndpoint(
+    user,
+    `/api/staff/service-hours/${encodeURIComponent(serviceHourRecordId)}/reject`,
+    { method: "PATCH" }
+  );
+
+  return response.text();
+}
+
+export async function deleteStaffServiceHour(user, serviceHourRecordId) {
+  if (!serviceHourRecordId) {
+    throw new Error("Service-hour record selection is required.");
+  }
+
+  const response = await fetchStaffEndpoint(
+    user,
+    `/api/staff/service-hours/${encodeURIComponent(serviceHourRecordId)}`,
+    { method: "DELETE" }
+  );
+
+  return response.text();
 }
 
 export async function updateStaffServiceHourRequestUrl(user, serviceHourRequestFormUrl) {

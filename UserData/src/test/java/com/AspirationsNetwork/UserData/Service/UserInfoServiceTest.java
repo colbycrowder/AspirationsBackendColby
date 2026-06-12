@@ -2,6 +2,7 @@ package com.AspirationsNetwork.UserData.Service;
 
 import com.AspirationsNetwork.UserData.DTO.UserProfileCreationDTO;
 import com.AspirationsNetwork.UserData.DTO.StaffUserUpdateDTO;
+import com.AspirationsNetwork.UserData.DTO.UserTotalsDTO;
 import com.AspirationsNetwork.UserData.DTO.YouthProfileCompletionDTO;
 import com.AspirationsNetwork.UserData.Models.User;
 import com.google.api.core.ApiFuture;
@@ -9,6 +10,8 @@ import com.google.cloud.firestore.CollectionReference;
 import com.google.cloud.firestore.DocumentReference;
 import com.google.cloud.firestore.DocumentSnapshot;
 import com.google.cloud.firestore.Firestore;
+import com.google.cloud.firestore.QueryDocumentSnapshot;
+import com.google.cloud.firestore.QuerySnapshot;
 import com.google.cloud.firestore.WriteResult;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -281,5 +284,160 @@ class UserInfoServiceTest {
         assertThrows(ForbiddenAccessException.class, () -> service.completeYouthProfile("staff-uid", dto));
 
         verify(participantIdService, never()).generateParticipantId();
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void getUsersForStaffFiltersByRoleActiveYouthProfileAndProgram() throws Exception {
+        Firestore firestore = mock(Firestore.class);
+        CollectionReference usersCollection = mock(CollectionReference.class);
+        QueryDocumentSnapshot matchingDocument = mock(QueryDocumentSnapshot.class);
+        QueryDocumentSnapshot inactiveDocument = mock(QueryDocumentSnapshot.class);
+        QueryDocumentSnapshot staffDocument = mock(QueryDocumentSnapshot.class);
+        User matchingUser = staffUser("youth-1", "member", true, "active");
+        matchingUser.setProgramIds(List.of("program-123"));
+        User inactiveUser = staffUser("youth-2", "member", true, "inactive");
+        inactiveUser.setProgramIds(List.of("program-123"));
+        User staffUser = staffUser("staff-1", "staff", false, "active");
+
+        stubUserCollection(usersCollection, List.of(matchingDocument, inactiveDocument, staffDocument));
+        when(firestore.collection(UserInfoService.COLLECTION_NAME)).thenReturn(usersCollection);
+        when(matchingDocument.toObject(User.class)).thenReturn(matchingUser);
+        when(inactiveDocument.toObject(User.class)).thenReturn(inactiveUser);
+        when(staffDocument.toObject(User.class)).thenReturn(staffUser);
+
+        UserInfoService service = new UserInfoService(firestore, mock(ParticipantIdService.class));
+        List<User> users = service.getUsersForStaff("member", true, true, "program-123");
+
+        assertEquals(1, users.size());
+        assertEquals("youth-1", users.get(0).getUid());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void getUserTotalsForStaffCountsStatusesAndRoles() throws Exception {
+        Firestore firestore = mock(Firestore.class);
+        CollectionReference usersCollection = mock(CollectionReference.class);
+        QueryDocumentSnapshot youthDocument = mock(QueryDocumentSnapshot.class);
+        QueryDocumentSnapshot staffDocument = mock(QueryDocumentSnapshot.class);
+        QueryDocumentSnapshot educatorDocument = mock(QueryDocumentSnapshot.class);
+        QueryDocumentSnapshot partnerDocument = mock(QueryDocumentSnapshot.class);
+        QueryDocumentSnapshot governmentDocument = mock(QueryDocumentSnapshot.class);
+
+        stubUserCollection(usersCollection, List.of(
+                youthDocument,
+                staffDocument,
+                educatorDocument,
+                partnerDocument,
+                governmentDocument
+        ));
+        when(firestore.collection(UserInfoService.COLLECTION_NAME)).thenReturn(usersCollection);
+        when(youthDocument.toObject(User.class)).thenReturn(staffUser("youth-1", "member", true, "active"));
+        when(staffDocument.toObject(User.class)).thenReturn(staffUser("staff-1", "staff", false, "active"));
+        when(educatorDocument.toObject(User.class)).thenReturn(staffUser("educator-1", "educator", false, "inactive"));
+        when(partnerDocument.toObject(User.class)).thenReturn(staffUser("partner-1", "partner", false, "inactive"));
+        when(governmentDocument.toObject(User.class)).thenReturn(staffUser("government-1", "government", false, "active"));
+
+        UserInfoService service = new UserInfoService(firestore, mock(ParticipantIdService.class));
+        UserTotalsDTO totals = service.getUserTotalsForStaff();
+
+        assertEquals(5, totals.getTotalUsers());
+        assertEquals(3, totals.getActiveUsers());
+        assertEquals(2, totals.getInactiveUsers());
+        assertEquals(1, totals.getYouthUsers());
+        assertEquals(1, totals.getStaffUsers());
+        assertEquals(1, totals.getEducatorUsers());
+        assertEquals(1, totals.getPartnerUsers());
+        assertEquals(1, totals.getGovernmentUsers());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void updateUserForStaffUpdatesAllowedFieldsWithoutChangingUidOrRole() throws Exception {
+        Firestore firestore = mock(Firestore.class);
+        CollectionReference usersCollection = mock(CollectionReference.class);
+        DocumentReference userDocument = mock(DocumentReference.class);
+        DocumentSnapshot userSnapshot = mock(DocumentSnapshot.class);
+        ApiFuture<DocumentSnapshot> readFuture = mock(ApiFuture.class);
+        ApiFuture<WriteResult> updateFuture = mock(ApiFuture.class);
+
+        when(firestore.collection(UserInfoService.COLLECTION_NAME)).thenReturn(usersCollection);
+        when(usersCollection.document("uid-123")).thenReturn(userDocument);
+        when(userDocument.get()).thenReturn(readFuture);
+        when(readFuture.get()).thenReturn(userSnapshot);
+        when(userSnapshot.exists()).thenReturn(true);
+        when(userSnapshot.toObject(User.class)).thenReturn(staffUser("uid-123", "member", true, "pending_onboarding"));
+        when(userDocument.update(any(Map.class))).thenReturn(updateFuture);
+        when(updateFuture.get()).thenReturn(mock(WriteResult.class));
+
+        StaffUserUpdateDTO dto = new StaffUserUpdateDTO();
+        dto.setProfileStatus("active");
+        dto.setProgramIds(List.of("program-1"));
+        dto.setStaffReviewRequired(false);
+        dto.setStaffVerified(true);
+
+        UserInfoService service = new UserInfoService(firestore, mock(ParticipantIdService.class));
+        service.updateUserForStaff("uid-123", dto);
+
+        ArgumentCaptor<Map<String, Object>> updateCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(userDocument).update(updateCaptor.capture());
+
+        Map<String, Object> updates = updateCaptor.getValue();
+        assertEquals("active", updates.get("profileStatus"));
+        assertEquals(List.of("program-1"), updates.get("programIds"));
+        assertEquals(false, updates.get("staffReviewRequired"));
+        assertEquals(true, updates.get("staffVerified"));
+        assertFalse(updates.containsKey("uid"));
+        assertFalse(updates.containsKey("role"));
+        assertFalse(updates.containsKey("aspnParticipantId"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void activateAndDeactivateUserForStaffSetProfileStatus() throws Exception {
+        Firestore firestore = mock(Firestore.class);
+        CollectionReference usersCollection = mock(CollectionReference.class);
+        DocumentReference userDocument = mock(DocumentReference.class);
+        DocumentSnapshot userSnapshot = mock(DocumentSnapshot.class);
+        ApiFuture<DocumentSnapshot> readFuture = mock(ApiFuture.class);
+        ApiFuture<WriteResult> activeFuture = mock(ApiFuture.class);
+        ApiFuture<WriteResult> inactiveFuture = mock(ApiFuture.class);
+
+        when(firestore.collection(UserInfoService.COLLECTION_NAME)).thenReturn(usersCollection);
+        when(usersCollection.document("uid-123")).thenReturn(userDocument);
+        when(userDocument.get()).thenReturn(readFuture);
+        when(readFuture.get()).thenReturn(userSnapshot);
+        when(userSnapshot.exists()).thenReturn(true);
+        when(userSnapshot.toObject(User.class)).thenReturn(staffUser("uid-123", "member", true, "pending_onboarding"));
+        when(userDocument.update(eq("profileStatus"), eq("active"))).thenReturn(activeFuture);
+        when(userDocument.update(eq("profileStatus"), eq("inactive"))).thenReturn(inactiveFuture);
+        when(activeFuture.get()).thenReturn(mock(WriteResult.class));
+        when(inactiveFuture.get()).thenReturn(mock(WriteResult.class));
+
+        UserInfoService service = new UserInfoService(firestore, mock(ParticipantIdService.class));
+        service.activateUserForStaff("uid-123");
+        service.deactivateUserForStaff("uid-123");
+
+        verify(userDocument).update(eq("profileStatus"), eq("active"));
+        verify(userDocument).update(eq("profileStatus"), eq("inactive"));
+    }
+
+    @SuppressWarnings("unchecked")
+    private void stubUserCollection(CollectionReference usersCollection, List<QueryDocumentSnapshot> documents)
+            throws Exception {
+        ApiFuture<QuerySnapshot> future = mock(ApiFuture.class);
+        QuerySnapshot snapshot = mock(QuerySnapshot.class);
+        when(usersCollection.get()).thenReturn(future);
+        when(future.get()).thenReturn(snapshot);
+        when(snapshot.getDocuments()).thenReturn(documents);
+    }
+
+    private User staffUser(String uid, String role, boolean youthProfile, String profileStatus) {
+        User user = new User();
+        user.setUid(uid);
+        user.setRole(role);
+        user.setYouthProfile(youthProfile);
+        user.setProfileStatus(profileStatus);
+        return user;
     }
 }
