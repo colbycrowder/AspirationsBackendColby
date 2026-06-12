@@ -34,6 +34,7 @@ public class YouthDashboardDTO {
         private String profileStatus;
         private String school;
         private String graduationYear;
+        private String aspnParticipantId;
     }
 
     @Getter

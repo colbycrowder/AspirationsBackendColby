@@ -172,6 +172,10 @@ export function StaffYouthManagementPage() {
                     <dd>{getUserUid(selectedUser)}</dd>
                   </div>
                   <div>
+                    <dt>ASPN Participant ID</dt>
+                    <dd>{selectedUser.aspnParticipantId || "Not assigned yet"}</dd>
+                  </div>
+                  <div>
                     <dt>School</dt>
                     <dd>{selectedUser.school || "School not added"}</dd>
                   </div>

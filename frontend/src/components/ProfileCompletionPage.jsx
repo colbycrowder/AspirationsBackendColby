@@ -27,6 +27,7 @@ export function ProfileCompletionPage({ navigate }) {
   const { user } = useAuth();
   const [form, setForm] = useState(initialForm);
   const [profileStatus, setProfileStatus] = useState("pending_onboarding");
+  const [aspnParticipantId, setAspnParticipantId] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -49,9 +50,11 @@ export function ProfileCompletionPage({ navigate }) {
         if (profile?.user) {
           setForm(toForm(profile.user, user));
           setProfileStatus(profile.user.profileStatus || "pending_onboarding");
+          setAspnParticipantId(profile.user.aspnParticipantId || "");
         } else {
           setForm({ ...initialForm, email: user?.email || "" });
           setProfileStatus("pending_onboarding");
+          setAspnParticipantId("");
         }
       } catch (nextError) {
         if (isActive) {
@@ -89,6 +92,7 @@ export function ProfileCompletionPage({ navigate }) {
       const savedProfile = await saveMyProfile(user, toPayload(form));
       setForm(toForm(savedProfile?.user, user));
       setProfileStatus(savedProfile?.user?.profileStatus || "pending_onboarding");
+      setAspnParticipantId(savedProfile?.user?.aspnParticipantId || "");
       setMessage("Profile saved. Your dashboard will use these details.");
     } catch (nextError) {
       setError(nextError.message);
@@ -114,6 +118,8 @@ export function ProfileCompletionPage({ navigate }) {
       <section className="notice-panel">
         <strong>Status:</strong>
         <span> {profileStatus || "pending_onboarding"}</span>
+        <strong>ASPN Participant ID:</strong>
+        <span> {aspnParticipantId || "Assigned after profile save"}</span>
       </section>
 
       {message ? <MessagePanel tone="success" message={message} /> : null}

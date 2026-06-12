@@ -8,6 +8,7 @@ import com.AspirationsNetwork.UserData.Service.DashboardService;
 import com.AspirationsNetwork.UserData.Service.DiscussionPostService;
 import com.AspirationsNetwork.UserData.Service.MetricsService;
 import com.AspirationsNetwork.UserData.Service.NotificationService;
+import com.AspirationsNetwork.UserData.Service.ParticipantIdService;
 import com.AspirationsNetwork.UserData.Service.ProgramEnrollmentService;
 import com.AspirationsNetwork.UserData.Service.ProgramService;
 import com.AspirationsNetwork.UserData.Service.RwdLearningService;
@@ -52,6 +53,7 @@ class UserDataApplicationTests {
 			DashboardService.class,
 			MetricsService.class,
 			NotificationService.class,
+			ParticipantIdService.class,
 			ProgramEnrollmentService.class,
 			ProgramService.class,
 			RwdLearningService.class,

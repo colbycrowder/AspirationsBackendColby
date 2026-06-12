@@ -238,6 +238,7 @@ function ProfileSummary({ profile, unreadCount }) {
         <p>{profile?.email || "Email unavailable"}</p>
         <div className="summary-chips">
           <span>{profile?.profileStatus || "profile status unavailable"}</span>
+          <span>{profile?.aspnParticipantId || "ASPN ID pending"}</span>
           <span>{profile?.school || "school not added"}</span>
           <span>{profile?.graduationYear || "graduation year not added"}</span>
           <span>{unreadCount ?? 0} unread notifications</span>

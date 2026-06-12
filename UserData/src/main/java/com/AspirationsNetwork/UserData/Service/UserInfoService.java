@@ -24,6 +24,7 @@ import java.util.concurrent.ExecutionException;
 @RequiredArgsConstructor
 public class UserInfoService {
     private  final Firestore firestore;
+    private final ParticipantIdService participantIdService;
     public static final String COLLECTION_NAME = "aspirationnetworkusers";
 
     public User getUser(String id) throws ExecutionException, InterruptedException {
@@ -38,7 +39,7 @@ public class UserInfoService {
         }
         return null;
     }
-    public String createUserDetails(@NonNull UserProfileCreationDTO dto) throws ExecutionException, InterruptedException {
+    public String createUserDetails(@NonNull UserProfileCreationDTO dto) throws Exception {
         User user = new User();
         user.setFirstName(dto.getFirstName());
         user.setLastName(dto.getLastName());
@@ -46,6 +47,7 @@ public class UserInfoService {
         user.setUid(dto.getUid());
         user.setAccountType("member");
         user.setRole("member");
+        applyParticipantIdAssignment(user, participantIdService.generateParticipantId());
         user.setProfileImageUrl(null);
         user.setPublicProfile(false);
         user.setYouthProfile(true);
@@ -125,8 +127,7 @@ public class UserInfoService {
         }
     }
 
-    public User completeYouthProfile(String uid, YouthProfileCompletionDTO dto)
-            throws ExecutionException, InterruptedException {
+    public User completeYouthProfile(String uid, YouthProfileCompletionDTO dto) throws Exception {
         requireText(uid, "uid is required");
         if (dto == null) {
             throw new IllegalArgumentException("profile completion request is required");
@@ -138,6 +139,7 @@ public class UserInfoService {
             user.setUid(uid);
             user.setAccountType("member");
             user.setRole("member");
+            applyParticipantIdAssignment(user, participantIdService.generateParticipantId());
             user.setPublicProfile(false);
             user.setYouthProfile(true);
             user.setProfileStatus("pending_onboarding");
@@ -157,6 +159,7 @@ public class UserInfoService {
         }
 
         Map<String, Object> updates = new HashMap<>();
+        addParticipantIdIfMissing(existingUser, updates);
         addStringIfPresent(updates, "firstName", dto.getFirstName());
         addStringIfPresent(updates, "lastName", dto.getLastName());
         addStringIfPresent(updates, "email", dto.getEmail());
@@ -176,6 +179,28 @@ public class UserInfoService {
 
         firestore.collection(COLLECTION_NAME).document(uid).update(updates).get();
         return getUser(uid);
+    }
+
+    private void addParticipantIdIfMissing(User user, Map<String, Object> updates) throws Exception {
+        if (user.getAspnParticipantId() != null && !user.getAspnParticipantId().isBlank()) {
+            return;
+        }
+
+        ParticipantIdService.ParticipantIdAssignment assignment = participantIdService.generateParticipantId();
+        updates.put("aspnParticipantId", assignment.getAspnParticipantId());
+        updates.put("aspnParticipantIdAssignedAt", assignment.getAssignedAt());
+        updates.put("aspnParticipantIdAssignedBy", assignment.getAssignedBy());
+        updates.put("aspnParticipantCohortYear", assignment.getCohortYear());
+    }
+
+    private void applyParticipantIdAssignment(
+            User user,
+            ParticipantIdService.ParticipantIdAssignment assignment
+    ) {
+        user.setAspnParticipantId(assignment.getAspnParticipantId());
+        user.setAspnParticipantIdAssignedAt(assignment.getAssignedAt());
+        user.setAspnParticipantIdAssignedBy(assignment.getAssignedBy());
+        user.setAspnParticipantCohortYear(assignment.getCohortYear());
     }
 
     private boolean isStaffOrAdmin(String role) {

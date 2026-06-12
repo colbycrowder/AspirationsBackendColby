@@ -60,6 +60,7 @@ public class DashboardService {
         summary.setProfileStatus(user.getProfileStatus());
         summary.setSchool(user.getSchool());
         summary.setGraduationYear(user.getGraduationYear());
+        summary.setAspnParticipantId(user.getAspnParticipantId());
         return summary;
     }
 

@@ -4,6 +4,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 @Getter
@@ -20,6 +21,10 @@ public class User {
     private String avatar;
     private String profileImageUrl;
     private String role;
+    private String aspnParticipantId;
+    private Date aspnParticipantIdAssignedAt;
+    private String aspnParticipantIdAssignedBy;
+    private String aspnParticipantCohortYear;
 
     private boolean publicProfile = false;
     private boolean youthProfile = true;
