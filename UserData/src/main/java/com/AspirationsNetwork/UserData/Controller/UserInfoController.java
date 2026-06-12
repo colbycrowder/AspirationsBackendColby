@@ -51,6 +51,7 @@ import com.AspirationsNetwork.UserData.Service.ProgramService;
 import com.AspirationsNetwork.UserData.Service.ResearchExportService;
 import com.AspirationsNetwork.UserData.Service.RwdLearningService;
 import com.AspirationsNetwork.UserData.Service.ServiceHourService;
+import com.AspirationsNetwork.UserData.Service.StaffOperationEventService;
 import com.AspirationsNetwork.UserData.Service.SystemSettingsService;
 import com.AspirationsNetwork.UserData.Service.UnauthorizedAccessException;
 import com.AspirationsNetwork.UserData.Service.UserInfoService;
@@ -85,6 +86,7 @@ public class UserInfoController {
     private final PilotReportingService pilotReportingService;
     private final ExternalDatasetLinkService externalDatasetLinkService;
     private final ResearchExportService researchExportService;
+    private final StaffOperationEventService staffOperationEventService;
 
     @GetMapping("/getUser/{id}")
     public ResponseEntity<User> getUser(@PathVariable String id) {
@@ -240,6 +242,14 @@ public class UserInfoController {
                 || eventType == PlatformEventType.RWD_ACTIVITY_VIEWED;
     }
 
+    private Map<String, Object> metadata(Object... keyValues) {
+        Map<String, Object> metadata = new HashMap<>();
+        for (int i = 0; i < keyValues.length; i += 2) {
+            metadata.put((String) keyValues[i], keyValues[i + 1]);
+        }
+        return metadata;
+    }
+
     @GetMapping("/staff/metrics")
     public ResponseEntity<PlatformMetricsDTO> getStaffMetrics(
             @RequestHeader(value = "Authorization", required = false) String authorizationHeader
@@ -283,7 +293,20 @@ public class UserInfoController {
                 return ResponseEntity.badRequest().body("external dataset request is required");
             }
             dto.setCreatedByStaffUID(staffUID);
-            return ResponseEntity.ok(externalDatasetLinkService.createExternalDataset(dto));
+            String externalDatasetId = externalDatasetLinkService.createExternalDataset(dto);
+            staffOperationEventService.trackOperationSafely(
+                    staffUID,
+                    StaffOperationEventService.EXTERNAL_DATASET_CREATED,
+                    "externalDataset",
+                    externalDatasetId,
+                    null,
+                    metadata(
+                            "datasetName", dto.getDatasetName(),
+                            "externalSource", dto.getExternalSource(),
+                            "collectionPurpose", dto.getCollectionPurpose()
+                    )
+            );
+            return ResponseEntity.ok(externalDatasetId);
         } catch (UnauthorizedAccessException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
         } catch (ForbiddenAccessException e) {
@@ -343,7 +366,20 @@ public class UserInfoController {
                 return ResponseEntity.badRequest().body("participant external link request is required");
             }
             dto.setLinkedByStaffUID(staffUID);
-            return ResponseEntity.ok(externalDatasetLinkService.createParticipantExternalLink(dto));
+            String linkId = externalDatasetLinkService.createParticipantExternalLink(dto);
+            staffOperationEventService.trackOperationSafely(
+                    staffUID,
+                    StaffOperationEventService.PARTICIPANT_EXTERNAL_LINK_CREATED,
+                    "participantExternalLink",
+                    linkId,
+                    null,
+                    metadata(
+                            "aspnParticipantId", dto.getAspnParticipantId(),
+                            "externalDatasetId", dto.getExternalDatasetId(),
+                            "externalRecordId", dto.getExternalRecordId()
+                    )
+            );
+            return ResponseEntity.ok(linkId);
         } catch (UnauthorizedAccessException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
         } catch (ForbiddenAccessException e) {
@@ -598,6 +634,14 @@ public class UserInfoController {
             String staffUID = authService.requireStaff(authorizationHeader);
             dto.setAwardedByStaffUID(staffUID);
             String earnedCredentialID = credentialService.awardCredentialToYouth(dto);
+            staffOperationEventService.trackOperationSafely(
+                    staffUID,
+                    StaffOperationEventService.CREDENTIAL_AWARDED,
+                    "earnedCredential",
+                    earnedCredentialID,
+                    dto.getUserUID(),
+                    metadata("credentialID", dto.getCredentialID())
+            );
             return ResponseEntity.ok(earnedCredentialID);
         } catch (UnauthorizedAccessException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
@@ -619,6 +663,18 @@ public class UserInfoController {
             String staffUID = authService.requireStaff(authorizationHeader);
             dto.setCreatedByStaffUID(staffUID);
             String programId = programService.createProgram(dto);
+            staffOperationEventService.trackOperationSafely(
+                    staffUID,
+                    StaffOperationEventService.PROGRAM_CREATED,
+                    "program",
+                    programId,
+                    null,
+                    metadata(
+                            "programName", dto.getProgramName(),
+                            "programStatus", dto.getProgramStatus(),
+                            "category", dto.getCategory()
+                    )
+            );
             return ResponseEntity.ok(programId);
         } catch (UnauthorizedAccessException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
@@ -638,8 +694,23 @@ public class UserInfoController {
             @RequestBody ProgramDTO dto
     ) {
         try {
-            authService.requireStaff(authorizationHeader);
+            String staffUID = authService.requireStaff(authorizationHeader);
             programService.updateProgram(programId, dto);
+            String operationType = dto != null && "archived".equalsIgnoreCase(dto.getProgramStatus())
+                    ? StaffOperationEventService.PROGRAM_ARCHIVED
+                    : StaffOperationEventService.PROGRAM_UPDATED;
+            staffOperationEventService.trackOperationSafely(
+                    staffUID,
+                    operationType,
+                    "program",
+                    programId,
+                    null,
+                    metadata(
+                            "programName", dto == null ? null : dto.getProgramName(),
+                            "programStatus", dto == null ? null : dto.getProgramStatus(),
+                            "category", dto == null ? null : dto.getCategory()
+                    )
+            );
             return ResponseEntity.ok("Updated");
         } catch (UnauthorizedAccessException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
@@ -833,8 +904,20 @@ public class UserInfoController {
             @RequestBody StaffUserUpdateDTO dto
     ) {
         try {
-            authService.requireStaff(authorizationHeader);
+            String staffUID = authService.requireStaff(authorizationHeader);
             userInfoService.updateYouthUserForStaff(id, dto);
+            staffOperationEventService.trackOperationSafely(
+                    staffUID,
+                    StaffOperationEventService.YOUTH_PROFILE_REVIEWED,
+                    "youthProfile",
+                    id,
+                    id,
+                    metadata(
+                            "profileStatus", dto == null ? null : dto.getProfileStatus(),
+                            "staffReviewRequired", dto == null ? null : dto.getStaffReviewRequired(),
+                            "staffVerified", dto == null ? null : dto.getStaffVerified()
+                    )
+            );
             return ResponseEntity.ok("Updated");
         } catch (UnauthorizedAccessException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
@@ -856,6 +939,18 @@ public class UserInfoController {
             String staffUID = authService.requireStaff(authorizationHeader);
             dto.setStaffRecorderUID(staffUID);
             String attendanceRecordID = attendanceService.createAttendanceRecord(dto);
+            staffOperationEventService.trackOperationSafely(
+                    staffUID,
+                    StaffOperationEventService.ATTENDANCE_RECORDED,
+                    "attendanceRecord",
+                    attendanceRecordID,
+                    dto.getUserUID(),
+                    metadata(
+                            "programID", dto.getProgramID(),
+                            "eventName", dto.getEventName(),
+                            "attendanceStatus", dto.getAttendanceStatus()
+                    )
+            );
             return ResponseEntity.ok(attendanceRecordID);
         } catch (UnauthorizedAccessException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
@@ -896,6 +991,18 @@ public class UserInfoController {
             String staffUID = authService.requireStaff(authorizationHeader);
             dto.setReviewedByStaffUID(staffUID);
             String serviceHourRecordId = serviceHourService.createOrReviewServiceHourRecord(dto);
+            staffOperationEventService.trackOperationSafely(
+                    staffUID,
+                    StaffOperationEventService.SERVICE_HOUR_REVIEWED,
+                    "serviceHourRecord",
+                    serviceHourRecordId,
+                    dto.getUserUID(),
+                    metadata(
+                            "programId", dto.getProgramId(),
+                            "hours", dto.getHours(),
+                            "verificationStatus", dto.getVerificationStatus()
+                    )
+            );
             return ResponseEntity.ok(serviceHourRecordId);
         } catch (UnauthorizedAccessException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());

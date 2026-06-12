@@ -50,6 +50,7 @@ import com.AspirationsNetwork.UserData.Service.ProgramService;
 import com.AspirationsNetwork.UserData.Service.ResearchExportService;
 import com.AspirationsNetwork.UserData.Service.RwdLearningService;
 import com.AspirationsNetwork.UserData.Service.ServiceHourService;
+import com.AspirationsNetwork.UserData.Service.StaffOperationEventService;
 import com.AspirationsNetwork.UserData.Service.SystemSettingsService;
 import com.AspirationsNetwork.UserData.Service.UnauthorizedAccessException;
 import com.AspirationsNetwork.UserData.Service.UserInfoService;
@@ -64,6 +65,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.argThat;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -88,6 +91,7 @@ class UserInfoControllerTest {
     private final PilotReportingService pilotReportingService = mock(PilotReportingService.class);
     private final ExternalDatasetLinkService externalDatasetLinkService = mock(ExternalDatasetLinkService.class);
     private final ResearchExportService researchExportService = mock(ResearchExportService.class);
+    private final StaffOperationEventService staffOperationEventService = mock(StaffOperationEventService.class);
     private final UserInfoController controller = new UserInfoController(
             userInfoService,
             discussionPostService,
@@ -105,7 +109,8 @@ class UserInfoControllerTest {
             platformEventService,
             pilotReportingService,
             externalDatasetLinkService,
-            researchExportService
+            researchExportService,
+            staffOperationEventService
     );
 
     @Test
@@ -242,6 +247,18 @@ class UserInfoControllerTest {
         verify(externalDatasetLinkService).createExternalDataset(argThat(request ->
                 "staff-123".equals(request.getCreatedByStaffUID())
         ));
+        verify(staffOperationEventService).trackOperationSafely(
+                eq("staff-123"),
+                eq(StaffOperationEventService.EXTERNAL_DATASET_CREATED),
+                eq("externalDataset"),
+                eq("fall-survey-2026"),
+                isNull(),
+                argThat(metadata ->
+                        "Fall Survey 2026".equals(metadata.get("datasetName"))
+                                && "google_forms".equals(metadata.get("externalSource"))
+                                && metadata.containsKey("collectionPurpose")
+                )
+        );
     }
 
     @Test
@@ -288,6 +305,18 @@ class UserInfoControllerTest {
         verify(externalDatasetLinkService).createParticipantExternalLink(argThat(request ->
                 "staff-123".equals(request.getLinkedByStaffUID())
         ));
+        verify(staffOperationEventService).trackOperationSafely(
+                eq("staff-123"),
+                eq(StaffOperationEventService.PARTICIPANT_EXTERNAL_LINK_CREATED),
+                eq("participantExternalLink"),
+                eq("link-123"),
+                isNull(),
+                argThat(metadata ->
+                        "ASPN-2026-0001".equals(metadata.get("aspnParticipantId"))
+                                && "fall-survey-2026".equals(metadata.get("externalDatasetId"))
+                                && "response-123".equals(metadata.get("externalRecordId"))
+                )
+        );
     }
 
     @Test
@@ -661,6 +690,8 @@ class UserInfoControllerTest {
     @Test
     void awardCredentialReturnsEarnedCredentialId() throws Exception {
         AwardCredentialDTO dto = new AwardCredentialDTO();
+        dto.setCredentialID("credential-123");
+        dto.setUserUID("youth-123");
         dto.setAwardedByStaffUID("client-spoofed-staff");
         when(authService.requireStaff("Bearer token")).thenReturn("verified-staff-123");
         when(credentialService.awardCredentialToYouth(dto)).thenReturn("earned-credential-123");
@@ -670,6 +701,14 @@ class UserInfoControllerTest {
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals("earned-credential-123", response.getBody());
         assertEquals("verified-staff-123", dto.getAwardedByStaffUID());
+        verify(staffOperationEventService).trackOperationSafely(
+                eq("verified-staff-123"),
+                eq(StaffOperationEventService.CREDENTIAL_AWARDED),
+                eq("earnedCredential"),
+                eq("earned-credential-123"),
+                eq("youth-123"),
+                argThat(metadata -> "credential-123".equals(metadata.get("credentialID")))
+        );
     }
 
     @Test
@@ -712,6 +751,8 @@ class UserInfoControllerTest {
     @Test
     void createProgramReturnsProgramIdAndUsesVerifiedStaffUid() throws Exception {
         ProgramDTO dto = new ProgramDTO();
+        dto.setProgramName("Youth2Lead");
+        dto.setProgramStatus("active");
         dto.setCreatedByStaffUID("client-spoofed-staff");
         when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
         when(programService.createProgram(dto)).thenReturn("program-123");
@@ -721,6 +762,17 @@ class UserInfoControllerTest {
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals("program-123", response.getBody());
         assertEquals("verified-staff-123", dto.getCreatedByStaffUID());
+        verify(staffOperationEventService).trackOperationSafely(
+                eq("verified-staff-123"),
+                eq(StaffOperationEventService.PROGRAM_CREATED),
+                eq("program"),
+                eq("program-123"),
+                isNull(),
+                argThat(metadata ->
+                        "Youth2Lead".equals(metadata.get("programName"))
+                                && "active".equals(metadata.get("programStatus"))
+                )
+        );
     }
 
     @Test
@@ -737,13 +789,42 @@ class UserInfoControllerTest {
     }
 
     @Test
-    void updateProgramReturnsUpdatedForStaffToken() {
+    void updateProgramReturnsUpdatedForStaffToken() throws Exception {
         ProgramDTO dto = new ProgramDTO();
+        dto.setProgramStatus("active");
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
 
         ResponseEntity<String> response = controller.updateProgram("Bearer staff-token", "program-123", dto);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals("Updated", response.getBody());
+        verify(staffOperationEventService).trackOperationSafely(
+                eq("verified-staff-123"),
+                eq(StaffOperationEventService.PROGRAM_UPDATED),
+                eq("program"),
+                eq("program-123"),
+                isNull(),
+                argThat(metadata -> "active".equals(metadata.get("programStatus")))
+        );
+    }
+
+    @Test
+    void updateProgramTracksArchiveWhenProgramStatusIsArchived() throws Exception {
+        ProgramDTO dto = new ProgramDTO();
+        dto.setProgramStatus("archived");
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+
+        ResponseEntity<String> response = controller.updateProgram("Bearer staff-token", "program-123", dto);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        verify(staffOperationEventService).trackOperationSafely(
+                eq("verified-staff-123"),
+                eq(StaffOperationEventService.PROGRAM_ARCHIVED),
+                eq("program"),
+                eq("program-123"),
+                isNull(),
+                argThat(metadata -> "archived".equals(metadata.get("programStatus")))
+        );
     }
 
     @Test
@@ -807,13 +888,27 @@ class UserInfoControllerTest {
     }
 
     @Test
-    void updateYouthUserForStaffReturnsUpdatedForStaffToken() {
+    void updateYouthUserForStaffReturnsUpdatedForStaffToken() throws Exception {
         StaffUserUpdateDTO dto = new StaffUserUpdateDTO();
+        dto.setProfileStatus("active");
+        dto.setStaffVerified(true);
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
 
         ResponseEntity<String> response = controller.updateYouthUserForStaff("Bearer staff-token", "youth-123", dto);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals("Updated", response.getBody());
+        verify(staffOperationEventService).trackOperationSafely(
+                eq("verified-staff-123"),
+                eq(StaffOperationEventService.YOUTH_PROFILE_REVIEWED),
+                eq("youthProfile"),
+                eq("youth-123"),
+                eq("youth-123"),
+                argThat(metadata ->
+                        "active".equals(metadata.get("profileStatus"))
+                                && Boolean.TRUE.equals(metadata.get("staffVerified"))
+                )
+        );
     }
 
     @Test
@@ -831,6 +926,10 @@ class UserInfoControllerTest {
     @Test
     void createAttendanceRecordReturnsCreatedRecordIdAndUsesVerifiedStaffUid() throws Exception {
         AttendanceRecordCreationDTO dto = new AttendanceRecordCreationDTO();
+        dto.setUserUID("youth-123");
+        dto.setProgramID("program-123");
+        dto.setEventName("Weekly meeting");
+        dto.setAttendanceStatus("present");
         dto.setStaffRecorderUID("client-spoofed-staff");
         when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
         when(attendanceService.createAttendanceRecord(dto)).thenReturn("attendance-123");
@@ -840,6 +939,17 @@ class UserInfoControllerTest {
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals("attendance-123", response.getBody());
         assertEquals("verified-staff-123", dto.getStaffRecorderUID());
+        verify(staffOperationEventService).trackOperationSafely(
+                eq("verified-staff-123"),
+                eq(StaffOperationEventService.ATTENDANCE_RECORDED),
+                eq("attendanceRecord"),
+                eq("attendance-123"),
+                eq("youth-123"),
+                argThat(metadata ->
+                        "program-123".equals(metadata.get("programID"))
+                                && "present".equals(metadata.get("attendanceStatus"))
+                )
+        );
     }
 
     @Test
@@ -874,6 +984,10 @@ class UserInfoControllerTest {
     @Test
     void createOrReviewServiceHourRecordReturnsRecordIdAndUsesVerifiedStaffUid() throws Exception {
         ServiceHourRecordDTO dto = new ServiceHourRecordDTO();
+        dto.setUserUID("youth-123");
+        dto.setProgramId("program-123");
+        dto.setHours(2.5);
+        dto.setVerificationStatus("verified");
         dto.setReviewedByStaffUID("client-spoofed-staff");
         when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
         when(serviceHourService.createOrReviewServiceHourRecord(dto)).thenReturn("service-hours-123");
@@ -883,6 +997,18 @@ class UserInfoControllerTest {
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals("service-hours-123", response.getBody());
         assertEquals("verified-staff-123", dto.getReviewedByStaffUID());
+        verify(staffOperationEventService).trackOperationSafely(
+                eq("verified-staff-123"),
+                eq(StaffOperationEventService.SERVICE_HOUR_REVIEWED),
+                eq("serviceHourRecord"),
+                eq("service-hours-123"),
+                eq("youth-123"),
+                argThat(metadata ->
+                        "program-123".equals(metadata.get("programId"))
+                                && "verified".equals(metadata.get("verificationStatus"))
+                                && Double.valueOf(2.5).equals(metadata.get("hours"))
+                )
+        );
     }
 
     @Test
