@@ -18,6 +18,7 @@ import com.AspirationsNetwork.UserData.DTO.RwdActivityDTO;
 import com.AspirationsNetwork.UserData.DTO.RwdProgressDTO;
 import com.AspirationsNetwork.UserData.DTO.ServiceHourRecordDTO;
 import com.AspirationsNetwork.UserData.DTO.ServiceHourRequestUrlDTO;
+import com.AspirationsNetwork.UserData.DTO.StaffOperationReportingDTO;
 import com.AspirationsNetwork.UserData.DTO.StaffUserUpdateDTO;
 import com.AspirationsNetwork.UserData.DTO.SystemSettingDTO;
 import com.AspirationsNetwork.UserData.DTO.UserProfileCreationDTO;
@@ -279,6 +280,22 @@ public class UserInfoController {
         try {
             authService.requireStaff(authorizationHeader);
             return ResponseEntity.ok(pilotReportingService.getPilotReportingMetrics());
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @GetMapping("/staff/operations/reporting")
+    public ResponseEntity<StaffOperationReportingDTO> getStaffOperationReporting(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader
+    ) {
+        try {
+            authService.requireStaff(authorizationHeader);
+            return ResponseEntity.ok(staffOperationEventService.buildOperationReport());
         } catch (UnauthorizedAccessException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         } catch (ForbiddenAccessException e) {

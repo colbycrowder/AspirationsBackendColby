@@ -19,6 +19,7 @@ import com.AspirationsNetwork.UserData.DTO.RwdActivityDTO;
 import com.AspirationsNetwork.UserData.DTO.RwdProgressDTO;
 import com.AspirationsNetwork.UserData.DTO.ServiceHourRecordDTO;
 import com.AspirationsNetwork.UserData.DTO.ServiceHourRequestUrlDTO;
+import com.AspirationsNetwork.UserData.DTO.StaffOperationReportingDTO;
 import com.AspirationsNetwork.UserData.DTO.StaffUserUpdateDTO;
 import com.AspirationsNetwork.UserData.DTO.UserProfileCreationDTO;
 import com.AspirationsNetwork.UserData.DTO.UserProfileWithCredentialsDTO;
@@ -234,6 +235,38 @@ class UserInfoControllerTest {
         assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
         assertNull(response.getBody());
         verifyNoInteractions(pilotReportingService);
+    }
+
+    @Test
+    void getStaffOperationReportingReturnsReportForStaffToken() throws Exception {
+        StaffOperationReportingDTO reporting = new StaffOperationReportingDTO();
+        reporting.setTotalOperations(8);
+        reporting.setOperationsLast30Days(4);
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("staff-123");
+        when(staffOperationEventService.buildOperationReport()).thenReturn(reporting);
+
+        ResponseEntity<StaffOperationReportingDTO> response = controller.getStaffOperationReporting(
+                "Bearer staff-token"
+        );
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(8, response.getBody().getTotalOperations());
+        assertEquals(4, response.getBody().getOperationsLast30Days());
+    }
+
+    @Test
+    void getStaffOperationReportingRejectsYouthToken() throws Exception {
+        doThrow(new ForbiddenAccessException("Staff role is required"))
+                .when(authService)
+                .requireStaff("Bearer youth-token");
+
+        ResponseEntity<StaffOperationReportingDTO> response = controller.getStaffOperationReporting(
+                "Bearer youth-token"
+        );
+
+        assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
+        assertNull(response.getBody());
+        verifyNoInteractions(staffOperationEventService);
     }
 
     @Test

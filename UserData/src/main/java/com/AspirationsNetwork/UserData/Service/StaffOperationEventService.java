@@ -1,7 +1,11 @@
 package com.AspirationsNetwork.UserData.Service;
 
+import com.AspirationsNetwork.UserData.DTO.StaffOperationReportingDTO;
 import com.AspirationsNetwork.UserData.Models.StaffOperationEvent;
+import com.google.api.core.ApiFuture;
 import com.google.cloud.firestore.Firestore;
+import com.google.cloud.firestore.QueryDocumentSnapshot;
+import com.google.cloud.firestore.QuerySnapshot;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -70,6 +74,56 @@ public class StaffOperationEventService {
         } catch (Exception e) {
             System.err.println("Staff operation tracking failed: " + e.getMessage());
         }
+    }
+
+    public StaffOperationReportingDTO buildOperationReport() throws Exception {
+        StaffOperationReportingDTO report = new StaffOperationReportingDTO();
+        Date now = new Date();
+        Date thirtyDaysAgo = daysAgo(now, 30);
+        Date sixtyDaysAgo = daysAgo(now, 60);
+        Date ninetyDaysAgo = daysAgo(now, 90);
+
+        ApiFuture<QuerySnapshot> future = firestore.collection(COLLECTION_NAME).get();
+        for (QueryDocumentSnapshot document : future.get().getDocuments()) {
+            StaffOperationEvent event = document.toObject(StaffOperationEvent.class);
+            if (event == null) {
+                continue;
+            }
+
+            report.setTotalOperations(report.getTotalOperations() + 1);
+            increment(report.getOperationsByType(), normalizeGroupValue(event.getOperationType()));
+            increment(report.getOperationsByStaffUser(), normalizeGroupValue(event.getStaffUID()));
+            increment(report.getOperationsByTargetType(), normalizeGroupValue(event.getTargetType()));
+
+            Date createdAt = event.getCreatedAt();
+            if (createdAt == null) {
+                continue;
+            }
+            if (!createdAt.before(thirtyDaysAgo)) {
+                report.setOperationsLast30Days(report.getOperationsLast30Days() + 1);
+            }
+            if (!createdAt.before(sixtyDaysAgo)) {
+                report.setOperationsLast60Days(report.getOperationsLast60Days() + 1);
+            }
+            if (!createdAt.before(ninetyDaysAgo)) {
+                report.setOperationsLast90Days(report.getOperationsLast90Days() + 1);
+            }
+        }
+
+        return report;
+    }
+
+    private void increment(Map<String, Integer> counts, String key) {
+        counts.merge(key, 1, Integer::sum);
+    }
+
+    private Date daysAgo(Date now, int days) {
+        long millisPerDay = 24L * 60L * 60L * 1000L;
+        return new Date(now.getTime() - days * millisPerDay);
+    }
+
+    private String normalizeGroupValue(String value) {
+        return value == null || value.isBlank() ? "unknown" : value;
     }
 
     private void requireText(String value, String message) {
