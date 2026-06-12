@@ -11,8 +11,10 @@ import com.AspirationsNetwork.UserData.DTO.ParticipantExternalLinkDTO;
 import com.AspirationsNetwork.UserData.DTO.PlatformEventRequestDTO;
 import com.AspirationsNetwork.UserData.DTO.PlatformMetricsDTO;
 import com.AspirationsNetwork.UserData.DTO.PilotReportingDTO;
+import com.AspirationsNetwork.UserData.DTO.ProgramDetailDTO;
 import com.AspirationsNetwork.UserData.DTO.ProgramEnrollmentDTO;
 import com.AspirationsNetwork.UserData.DTO.ProgramDTO;
+import com.AspirationsNetwork.UserData.DTO.ProgramTotalsDTO;
 import com.AspirationsNetwork.UserData.DTO.ResearchExportDTO;
 import com.AspirationsNetwork.UserData.DTO.RwdActivityDTO;
 import com.AspirationsNetwork.UserData.DTO.RwdProgressDTO;
@@ -833,6 +835,65 @@ public class UserInfoController {
         }
     }
 
+    @GetMapping("/staff/programs")
+    public ResponseEntity<List<Program>> getProgramsForStaff(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestParam(value = "active", required = false) Boolean active,
+            @RequestParam(value = "programType", required = false) String programType
+    ) {
+        try {
+            authService.requireStaff(authorizationHeader);
+            return ResponseEntity.ok(programService.getPrograms(active, programType));
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @GetMapping("/staff/programs/totals")
+    public ResponseEntity<ProgramTotalsDTO> getProgramTotalsForStaff(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader
+    ) {
+        try {
+            authService.requireStaff(authorizationHeader);
+            return ResponseEntity.ok(programService.getProgramTotals());
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @GetMapping("/staff/programs/{programId}")
+    public ResponseEntity<ProgramDetailDTO> getProgramDetailForStaff(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @PathVariable String programId
+    ) {
+        try {
+            authService.requireStaff(authorizationHeader);
+            ProgramDetailDTO detail = programService.getProgramDetail(programId);
+            if (detail == null) {
+                return ResponseEntity.notFound().build();
+            }
+            return ResponseEntity.ok(detail);
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
     @PatchMapping("/staff/programs/{programId}")
     public ResponseEntity<String> updateProgram(
             @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
@@ -866,6 +927,62 @@ public class UserInfoController {
             return ResponseEntity.badRequest().body(e.getMessage());
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body("Error updating program");
+        }
+    }
+
+    @PatchMapping("/staff/programs/{programId}/archive")
+    public ResponseEntity<String> archiveProgram(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @PathVariable String programId
+    ) {
+        try {
+            String staffUID = authService.requireStaff(authorizationHeader);
+            programService.archiveProgram(programId);
+            staffOperationEventService.trackOperationSafely(
+                    staffUID,
+                    StaffOperationEventService.PROGRAM_ARCHIVED,
+                    "program",
+                    programId,
+                    null,
+                    metadata("programStatus", "archived")
+            );
+            return ResponseEntity.ok("Archived");
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Error archiving program");
+        }
+    }
+
+    @PatchMapping("/staff/programs/{programId}/restore")
+    public ResponseEntity<String> restoreProgram(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @PathVariable String programId
+    ) {
+        try {
+            String staffUID = authService.requireStaff(authorizationHeader);
+            programService.restoreProgram(programId);
+            staffOperationEventService.trackOperationSafely(
+                    staffUID,
+                    StaffOperationEventService.PROGRAM_UPDATED,
+                    "program",
+                    programId,
+                    null,
+                    metadata("programStatus", "active")
+            );
+            return ResponseEntity.ok("Restored");
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Error restoring program");
         }
     }
 

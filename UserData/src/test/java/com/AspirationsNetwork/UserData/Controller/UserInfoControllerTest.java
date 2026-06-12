@@ -12,8 +12,10 @@ import com.AspirationsNetwork.UserData.DTO.ParticipantExternalLinkDTO;
 import com.AspirationsNetwork.UserData.DTO.PlatformMetricsDTO;
 import com.AspirationsNetwork.UserData.DTO.PlatformEventRequestDTO;
 import com.AspirationsNetwork.UserData.DTO.PilotReportingDTO;
+import com.AspirationsNetwork.UserData.DTO.ProgramDetailDTO;
 import com.AspirationsNetwork.UserData.DTO.ProgramEnrollmentDTO;
 import com.AspirationsNetwork.UserData.DTO.ProgramDTO;
+import com.AspirationsNetwork.UserData.DTO.ProgramTotalsDTO;
 import com.AspirationsNetwork.UserData.DTO.ResearchExportDTO;
 import com.AspirationsNetwork.UserData.DTO.RwdActivityDTO;
 import com.AspirationsNetwork.UserData.DTO.RwdProgressDTO;
@@ -974,6 +976,111 @@ class UserInfoControllerTest {
                 isNull(),
                 argThat(metadata -> "archived".equals(metadata.get("programStatus")))
         );
+    }
+
+    @Test
+    void getProgramsForStaffReturnsFilteredPrograms() throws Exception {
+        Program program = new Program();
+        program.setProgramId("program-123");
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+        when(programService.getPrograms(true, "leadership")).thenReturn(List.of(program));
+
+        ResponseEntity<List<Program>> response = controller.getProgramsForStaff(
+                "Bearer staff-token",
+                true,
+                "leadership"
+        );
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("program-123", response.getBody().get(0).getProgramId());
+    }
+
+    @Test
+    void getProgramDetailForStaffReturnsDetail() throws Exception {
+        ProgramDetailDTO detail = new ProgramDetailDTO();
+        Program program = new Program();
+        program.setProgramId("program-123");
+        detail.setProgram(program);
+        detail.setEnrollmentCount(2);
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+        when(programService.getProgramDetail("program-123")).thenReturn(detail);
+
+        ResponseEntity<ProgramDetailDTO> response = controller.getProgramDetailForStaff(
+                "Bearer staff-token",
+                "program-123"
+        );
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("program-123", response.getBody().getProgram().getProgramId());
+        assertEquals(2, response.getBody().getEnrollmentCount());
+    }
+
+    @Test
+    void getProgramDetailForStaffReturnsNotFoundWhenProgramMissing() throws Exception {
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+        when(programService.getProgramDetail("missing-program")).thenReturn(null);
+
+        ResponseEntity<ProgramDetailDTO> response = controller.getProgramDetailForStaff(
+                "Bearer staff-token",
+                "missing-program"
+        );
+
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+        assertNull(response.getBody());
+    }
+
+    @Test
+    void getProgramTotalsForStaffReturnsTotals() throws Exception {
+        ProgramTotalsDTO totals = new ProgramTotalsDTO();
+        totals.setTotalPrograms(3);
+        totals.setActivePrograms(2);
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+        when(programService.getProgramTotals()).thenReturn(totals);
+
+        ResponseEntity<ProgramTotalsDTO> response = controller.getProgramTotalsForStaff(
+                "Bearer staff-token"
+        );
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(3, response.getBody().getTotalPrograms());
+        assertEquals(2, response.getBody().getActivePrograms());
+    }
+
+    @Test
+    void archiveAndRestoreProgramRequireStaffToken() throws Exception {
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+
+        ResponseEntity<String> archiveResponse = controller.archiveProgram(
+                "Bearer staff-token",
+                "program-123"
+        );
+        ResponseEntity<String> restoreResponse = controller.restoreProgram(
+                "Bearer staff-token",
+                "program-123"
+        );
+
+        assertEquals(HttpStatus.OK, archiveResponse.getStatusCode());
+        assertEquals("Archived", archiveResponse.getBody());
+        assertEquals(HttpStatus.OK, restoreResponse.getStatusCode());
+        assertEquals("Restored", restoreResponse.getBody());
+        verify(programService).archiveProgram("program-123");
+        verify(programService).restoreProgram("program-123");
+    }
+
+    @Test
+    void getProgramsForStaffRejectsYouthToken() throws Exception {
+        doThrow(new ForbiddenAccessException("Staff role is required"))
+                .when(authService)
+                .requireStaff("Bearer youth-token");
+
+        ResponseEntity<List<Program>> response = controller.getProgramsForStaff(
+                "Bearer youth-token",
+                null,
+                null
+        );
+
+        assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
+        assertNull(response.getBody());
     }
 
     @Test
