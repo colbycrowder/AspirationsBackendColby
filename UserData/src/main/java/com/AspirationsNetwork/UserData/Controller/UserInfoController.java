@@ -1,8 +1,11 @@
 package com.AspirationsNetwork.UserData.Controller;
 
 import com.AspirationsNetwork.UserData.DTO.AttendanceRecordCreationDTO;
+import com.AspirationsNetwork.UserData.DTO.AttendanceTotalsDTO;
 import com.AspirationsNetwork.UserData.DTO.AwardCredentialDTO;
 import com.AspirationsNetwork.UserData.DTO.CredentialDefinitionCreationDTO;
+import com.AspirationsNetwork.UserData.DTO.CredentialDefinitionUpdateDTO;
+import com.AspirationsNetwork.UserData.DTO.CredentialTotalsDTO;
 import com.AspirationsNetwork.UserData.DTO.ExternalDatasetDTO;
 import com.AspirationsNetwork.UserData.DTO.ParticipantExternalLinkDTO;
 import com.AspirationsNetwork.UserData.DTO.PlatformEventRequestDTO;
@@ -24,6 +27,7 @@ import com.AspirationsNetwork.UserData.DTO.YouthProfileCompletionDTO;
 import com.AspirationsNetwork.UserData.DTO.YouthSelfServiceProfileDTO;
 import com.AspirationsNetwork.UserData.Models.AttendanceRecord;
 import com.AspirationsNetwork.UserData.Models.Comment;
+import com.AspirationsNetwork.UserData.Models.CredentialDefinition;
 import com.AspirationsNetwork.UserData.Models.DiscussionPost;
 import com.AspirationsNetwork.UserData.Models.ExternalDataset;
 import com.AspirationsNetwork.UserData.Models.Notification;
@@ -58,9 +62,11 @@ import com.AspirationsNetwork.UserData.Service.UserInfoService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -654,6 +660,127 @@ public class UserInfoController {
         }
     }
 
+    @GetMapping("/staff/credentials/definitions")
+    public ResponseEntity<List<CredentialDefinition>> getCredentialDefinitionsForStaff(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestParam(value = "category", required = false) String category,
+            @RequestParam(value = "active", required = false) Boolean active,
+            @RequestParam(value = "programId", required = false) String programId
+    ) {
+        try {
+            authService.requireStaff(authorizationHeader);
+            return ResponseEntity.ok(credentialService.getCredentialDefinitions(category, active, programId));
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @GetMapping("/staff/credentials/definitions/{credentialID}")
+    public ResponseEntity<CredentialDefinition> getCredentialDefinitionForStaff(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @PathVariable String credentialID
+    ) {
+        try {
+            authService.requireStaff(authorizationHeader);
+            CredentialDefinition definition = credentialService.getCredentialDefinition(credentialID);
+            if (definition == null) {
+                return ResponseEntity.notFound().build();
+            }
+            return ResponseEntity.ok(definition);
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @PatchMapping("/staff/credentials/definitions/{credentialID}")
+    public ResponseEntity<String> updateCredentialDefinition(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @PathVariable String credentialID,
+            @RequestBody CredentialDefinitionUpdateDTO dto
+    ) {
+        try {
+            authService.requireStaff(authorizationHeader);
+            credentialService.updateCredentialDefinition(credentialID, dto);
+            return ResponseEntity.ok("Updated");
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Error updating credential definition");
+        }
+    }
+
+    @PatchMapping("/staff/credentials/definitions/{credentialID}/archive")
+    public ResponseEntity<String> archiveCredentialDefinition(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @PathVariable String credentialID
+    ) {
+        try {
+            authService.requireStaff(authorizationHeader);
+            credentialService.archiveCredentialDefinition(credentialID);
+            return ResponseEntity.ok("Archived");
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Error archiving credential definition");
+        }
+    }
+
+    @PatchMapping("/staff/credentials/definitions/{credentialID}/restore")
+    public ResponseEntity<String> restoreCredentialDefinition(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @PathVariable String credentialID
+    ) {
+        try {
+            authService.requireStaff(authorizationHeader);
+            credentialService.restoreCredentialDefinition(credentialID);
+            return ResponseEntity.ok("Restored");
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Error restoring credential definition");
+        }
+    }
+
+    @GetMapping("/staff/credentials/totals")
+    public ResponseEntity<CredentialTotalsDTO> getCredentialTotalsForStaff(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestParam(value = "category", required = false) String category,
+            @RequestParam(value = "programId", required = false) String programId
+    ) {
+        try {
+            authService.requireStaff(authorizationHeader);
+            return ResponseEntity.ok(credentialService.getCredentialTotals(category, programId));
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
     @PostMapping("/staff/programs")
     public ResponseEntity<String> createProgram(
             @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
@@ -960,6 +1087,95 @@ public class UserInfoController {
             return ResponseEntity.badRequest().body(e.getMessage());
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body("Error creating attendance record");
+        }
+    }
+
+    @GetMapping("/staff/attendance")
+    public ResponseEntity<List<AttendanceRecord>> getAttendanceRecordsForStaff(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestParam(value = "userUID", required = false) String userUID,
+            @RequestParam(value = "programID", required = false) String programID,
+            @RequestParam(value = "eventDate", required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) Date eventDate
+    ) {
+        try {
+            authService.requireStaff(authorizationHeader);
+            return ResponseEntity.ok(attendanceService.getAttendanceRecords(userUID, programID, eventDate));
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @GetMapping("/staff/attendance/totals")
+    public ResponseEntity<AttendanceTotalsDTO> getAttendanceTotalsForStaff(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestParam(value = "userUID", required = false) String userUID,
+            @RequestParam(value = "programID", required = false) String programID,
+            @RequestParam(value = "eventDate", required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) Date eventDate
+    ) {
+        try {
+            authService.requireStaff(authorizationHeader);
+            return ResponseEntity.ok(attendanceService.getAttendanceTotals(userUID, programID, eventDate));
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @PatchMapping("/staff/attendance/{attendanceRecordID}")
+    public ResponseEntity<String> updateAttendanceRecord(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @PathVariable String attendanceRecordID,
+            @RequestBody AttendanceRecordCreationDTO dto
+    ) {
+        try {
+            String staffUID = authService.requireStaff(authorizationHeader);
+            if (dto == null) {
+                return ResponseEntity.badRequest().body("attendance record update request is required");
+            }
+            dto.setStaffRecorderUID(staffUID);
+            attendanceService.updateAttendanceRecord(attendanceRecordID, dto);
+            return ResponseEntity.ok("Updated");
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Error updating attendance record");
+        }
+    }
+
+    @DeleteMapping("/staff/attendance/{attendanceRecordID}")
+    public ResponseEntity<String> deleteAttendanceRecord(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @PathVariable String attendanceRecordID
+    ) {
+        try {
+            authService.requireStaff(authorizationHeader);
+            attendanceService.deleteAttendanceRecord(attendanceRecordID);
+            return ResponseEntity.ok("Deleted");
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Error deleting attendance record");
         }
     }
 

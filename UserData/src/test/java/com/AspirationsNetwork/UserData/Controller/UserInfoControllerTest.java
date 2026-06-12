@@ -1,8 +1,11 @@
 package com.AspirationsNetwork.UserData.Controller;
 
 import com.AspirationsNetwork.UserData.DTO.AttendanceRecordCreationDTO;
+import com.AspirationsNetwork.UserData.DTO.AttendanceTotalsDTO;
 import com.AspirationsNetwork.UserData.DTO.AwardCredentialDTO;
 import com.AspirationsNetwork.UserData.DTO.CredentialDefinitionCreationDTO;
+import com.AspirationsNetwork.UserData.DTO.CredentialDefinitionUpdateDTO;
+import com.AspirationsNetwork.UserData.DTO.CredentialTotalsDTO;
 import com.AspirationsNetwork.UserData.DTO.EarnedCredentialDisplayDTO;
 import com.AspirationsNetwork.UserData.DTO.ExternalDatasetDTO;
 import com.AspirationsNetwork.UserData.DTO.ParticipantExternalLinkDTO;
@@ -24,6 +27,7 @@ import com.AspirationsNetwork.UserData.DTO.YouthSelfServiceProfileDTO;
 import com.AspirationsNetwork.UserData.Models.PlatformEventType;
 import com.AspirationsNetwork.UserData.Models.AttendanceRecord;
 import com.AspirationsNetwork.UserData.Models.Comment;
+import com.AspirationsNetwork.UserData.Models.CredentialDefinition;
 import com.AspirationsNetwork.UserData.Models.DiscussionPost;
 import com.AspirationsNetwork.UserData.Models.ExternalDataset;
 import com.AspirationsNetwork.UserData.Models.Notification;
@@ -60,6 +64,7 @@ import org.springframework.http.ResponseEntity;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Date;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -749,6 +754,115 @@ class UserInfoControllerTest {
     }
 
     @Test
+    void getCredentialDefinitionsForStaffReturnsFilteredDefinitions() throws Exception {
+        CredentialDefinition definition = new CredentialDefinition();
+        definition.setCredentialID("credential-123");
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+        when(credentialService.getCredentialDefinitions("RWD", true, "program-123"))
+                .thenReturn(List.of(definition));
+
+        ResponseEntity<List<CredentialDefinition>> response = controller.getCredentialDefinitionsForStaff(
+                "Bearer staff-token",
+                "RWD",
+                true,
+                "program-123"
+        );
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("credential-123", response.getBody().get(0).getCredentialID());
+    }
+
+    @Test
+    void getCredentialDefinitionForStaffReturnsDetails() throws Exception {
+        CredentialDefinition definition = new CredentialDefinition();
+        definition.setCredentialID("credential-123");
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+        when(credentialService.getCredentialDefinition("credential-123")).thenReturn(definition);
+
+        ResponseEntity<CredentialDefinition> response = controller.getCredentialDefinitionForStaff(
+                "Bearer staff-token",
+                "credential-123"
+        );
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("credential-123", response.getBody().getCredentialID());
+    }
+
+    @Test
+    void updateCredentialDefinitionRequiresStaffAndDelegatesToService() throws Exception {
+        CredentialDefinitionUpdateDTO dto = new CredentialDefinitionUpdateDTO();
+        dto.setCredentialName("Updated credential");
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+
+        ResponseEntity<String> response = controller.updateCredentialDefinition(
+                "Bearer staff-token",
+                "credential-123",
+                dto
+        );
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("Updated", response.getBody());
+        verify(credentialService).updateCredentialDefinition("credential-123", dto);
+    }
+
+    @Test
+    void archiveAndRestoreCredentialDefinitionRequireStaff() throws Exception {
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+
+        ResponseEntity<String> archiveResponse = controller.archiveCredentialDefinition(
+                "Bearer staff-token",
+                "credential-123"
+        );
+        ResponseEntity<String> restoreResponse = controller.restoreCredentialDefinition(
+                "Bearer staff-token",
+                "credential-123"
+        );
+
+        assertEquals(HttpStatus.OK, archiveResponse.getStatusCode());
+        assertEquals("Archived", archiveResponse.getBody());
+        assertEquals(HttpStatus.OK, restoreResponse.getStatusCode());
+        assertEquals("Restored", restoreResponse.getBody());
+        verify(credentialService).archiveCredentialDefinition("credential-123");
+        verify(credentialService).restoreCredentialDefinition("credential-123");
+    }
+
+    @Test
+    void getCredentialTotalsForStaffReturnsTotals() throws Exception {
+        CredentialTotalsDTO totals = new CredentialTotalsDTO();
+        totals.setTotalDefinitions(3);
+        totals.setActiveDefinitions(2);
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+        when(credentialService.getCredentialTotals("RWD", "program-123")).thenReturn(totals);
+
+        ResponseEntity<CredentialTotalsDTO> response = controller.getCredentialTotalsForStaff(
+                "Bearer staff-token",
+                "RWD",
+                "program-123"
+        );
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(3, response.getBody().getTotalDefinitions());
+        assertEquals(2, response.getBody().getActiveDefinitions());
+    }
+
+    @Test
+    void getCredentialDefinitionsForStaffRejectsYouthToken() throws Exception {
+        doThrow(new ForbiddenAccessException("Staff role is required"))
+                .when(authService)
+                .requireStaff("Bearer youth-token");
+
+        ResponseEntity<List<CredentialDefinition>> response = controller.getCredentialDefinitionsForStaff(
+                "Bearer youth-token",
+                null,
+                null,
+                null
+        );
+
+        assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
+        assertNull(response.getBody());
+    }
+
+    @Test
     void createProgramReturnsProgramIdAndUsesVerifiedStaffUid() throws Exception {
         ProgramDTO dto = new ProgramDTO();
         dto.setProgramName("Youth2Lead");
@@ -963,6 +1077,80 @@ class UserInfoControllerTest {
 
         assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
         assertEquals("Staff role is required", response.getBody());
+    }
+
+    @Test
+    void getAttendanceRecordsForStaffReturnsFilteredRecords() throws Exception {
+        AttendanceRecord record = new AttendanceRecord();
+        record.setAttendanceRecordID("attendance-123");
+        Date eventDate = new Date();
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+        when(attendanceService.getAttendanceRecords("youth-123", "program-123", eventDate))
+                .thenReturn(List.of(record));
+
+        ResponseEntity<List<AttendanceRecord>> response = controller.getAttendanceRecordsForStaff(
+                "Bearer staff-token",
+                "youth-123",
+                "program-123",
+                eventDate
+        );
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("attendance-123", response.getBody().get(0).getAttendanceRecordID());
+    }
+
+    @Test
+    void getAttendanceTotalsForStaffReturnsTotals() throws Exception {
+        AttendanceTotalsDTO totals = new AttendanceTotalsDTO();
+        totals.setTotalRecords(3);
+        totals.setPresent(2);
+        Date eventDate = new Date();
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+        when(attendanceService.getAttendanceTotals("youth-123", "program-123", eventDate))
+                .thenReturn(totals);
+
+        ResponseEntity<AttendanceTotalsDTO> response = controller.getAttendanceTotalsForStaff(
+                "Bearer staff-token",
+                "youth-123",
+                "program-123",
+                eventDate
+        );
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(3, response.getBody().getTotalRecords());
+        assertEquals(2, response.getBody().getPresent());
+    }
+
+    @Test
+    void updateAttendanceRecordUsesVerifiedStaffUid() throws Exception {
+        AttendanceRecordCreationDTO dto = new AttendanceRecordCreationDTO();
+        dto.setStaffRecorderUID("client-spoofed-staff");
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+
+        ResponseEntity<String> response = controller.updateAttendanceRecord(
+                "Bearer staff-token",
+                "attendance-123",
+                dto
+        );
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("Updated", response.getBody());
+        assertEquals("verified-staff-123", dto.getStaffRecorderUID());
+        verify(attendanceService).updateAttendanceRecord("attendance-123", dto);
+    }
+
+    @Test
+    void deleteAttendanceRecordRequiresStaffToken() throws Exception {
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+
+        ResponseEntity<String> response = controller.deleteAttendanceRecord(
+                "Bearer staff-token",
+                "attendance-123"
+        );
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("Deleted", response.getBody());
+        verify(attendanceService).deleteAttendanceRecord("attendance-123");
     }
 
     @Test

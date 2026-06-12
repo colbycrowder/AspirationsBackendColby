@@ -3,6 +3,8 @@ package com.AspirationsNetwork.UserData.Service;
 import com.AspirationsNetwork.UserData.DTO.AwardCredentialDTO;
 import com.AspirationsNetwork.UserData.DTO.AvailableCredentialDTO;
 import com.AspirationsNetwork.UserData.DTO.CredentialDefinitionCreationDTO;
+import com.AspirationsNetwork.UserData.DTO.CredentialDefinitionUpdateDTO;
+import com.AspirationsNetwork.UserData.DTO.CredentialTotalsDTO;
 import com.AspirationsNetwork.UserData.DTO.EarnedCredentialDisplayDTO;
 import com.AspirationsNetwork.UserData.Models.CredentialDefinition;
 import com.AspirationsNetwork.UserData.Models.EarnedCredential;
@@ -20,6 +22,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -66,6 +69,115 @@ public class CredentialService {
                 .get();
 
         return credentialID;
+    }
+
+    public List<CredentialDefinition> getCredentialDefinitions(String category, Boolean active, String programId)
+            throws Exception {
+        List<CredentialDefinition> definitions = new ArrayList<>();
+        ApiFuture<QuerySnapshot> future = firestore.collection(CREDENTIAL_DEFINITIONS_COLLECTION).get();
+        for (QueryDocumentSnapshot document : future.get().getDocuments()) {
+            CredentialDefinition definition = document.toObject(CredentialDefinition.class);
+            if (definition != null && matchesDefinitionFilters(definition, category, active, programId)) {
+                definitions.add(definition);
+            }
+        }
+        return definitions;
+    }
+
+    public CredentialDefinition getCredentialDefinition(String credentialID) throws Exception {
+        requireText(credentialID, "credentialID is required");
+
+        DocumentSnapshot document = firestore.collection(CREDENTIAL_DEFINITIONS_COLLECTION)
+                .document(credentialID)
+                .get()
+                .get();
+        if (!document.exists()) {
+            return null;
+        }
+        return document.toObject(CredentialDefinition.class);
+    }
+
+    public void updateCredentialDefinition(String credentialID, CredentialDefinitionUpdateDTO dto) throws Exception {
+        requireText(credentialID, "credentialID is required");
+        if (dto == null) {
+            throw new IllegalArgumentException("credential definition update request is required");
+        }
+
+        DocumentReference definitionRef = firestore.collection(CREDENTIAL_DEFINITIONS_COLLECTION).document(credentialID);
+        if (!definitionRef.get().get().exists()) {
+            throw new IllegalArgumentException("Credential definition does not exist");
+        }
+
+        Map<String, Object> updates = new HashMap<>();
+        addIfPresent(updates, "credentialName", dto.getCredentialName());
+        addIfPresent(updates, "description", dto.getDescription());
+        if (dto.getIcon() != null) {
+            updates.put("icon", normalizeIcon(dto.getIcon()));
+        }
+        addIfPresent(updates, "category", dto.getCategory());
+        if (dto.getActive() != null) {
+            updates.put("active", dto.getActive());
+        }
+        if (dto.getProgramIds() != null) {
+            updates.put("programIds", dto.getProgramIds());
+        }
+        if (dto.getRequirements() != null) {
+            updates.put("requirements", dto.getRequirements());
+        }
+        addIfPresent(updates, "requirementText", dto.getRequirementText());
+        if (dto.getAutoAwardEnabled() != null) {
+            updates.put("autoAwardEnabled", dto.getAutoAwardEnabled());
+        }
+        addIfPresent(updates, "requirementType", dto.getRequirementType());
+        if (dto.getRequiredAttendanceCount() != null) {
+            updates.put("requiredAttendanceCount", dto.getRequiredAttendanceCount());
+        }
+        updates.put("updatedAt", new Date());
+
+        definitionRef.update(updates).get();
+    }
+
+    public void archiveCredentialDefinition(String credentialID) throws Exception {
+        setCredentialDefinitionActive(credentialID, false);
+    }
+
+    public void restoreCredentialDefinition(String credentialID) throws Exception {
+        setCredentialDefinitionActive(credentialID, true);
+    }
+
+    public CredentialTotalsDTO getCredentialTotals(String category, String programId) throws Exception {
+        List<CredentialDefinition> definitions = getCredentialDefinitions(category, null, programId);
+        Map<String, CredentialDefinition> definitionsById = new HashMap<>();
+        CredentialTotalsDTO totals = new CredentialTotalsDTO();
+
+        for (CredentialDefinition definition : definitions) {
+            totals.setTotalDefinitions(totals.getTotalDefinitions() + 1);
+            if (definition.isActive()) {
+                totals.setActiveDefinitions(totals.getActiveDefinitions() + 1);
+            } else {
+                totals.setArchivedDefinitions(totals.getArchivedDefinitions() + 1);
+            }
+            definitionsById.put(definition.getCredentialID(), definition);
+            String categoryName = hasText(definition.getCategory()) ? definition.getCategory() : "Uncategorized";
+            totals.getDefinitionsByCategory().merge(categoryName, 1, Integer::sum);
+        }
+
+        ApiFuture<QuerySnapshot> future = firestore.collection(EARNED_CREDENTIALS_COLLECTION).get();
+        for (QueryDocumentSnapshot document : future.get().getDocuments()) {
+            EarnedCredential earnedCredential = document.toObject(EarnedCredential.class);
+            if (earnedCredential == null) {
+                continue;
+            }
+            CredentialDefinition definition = definitionsById.get(earnedCredential.getCredentialID());
+            if (definition == null) {
+                continue;
+            }
+            totals.setTotalEarnedCredentials(totals.getTotalEarnedCredentials() + 1);
+            String categoryName = hasText(definition.getCategory()) ? definition.getCategory() : "Uncategorized";
+            totals.getEarnedCredentialsByCategory().merge(categoryName, 1, Integer::sum);
+        }
+
+        return totals;
     }
 
     public String awardCredentialToYouth(AwardCredentialDTO dto) throws Exception {
@@ -382,6 +494,46 @@ public class CredentialService {
         return values.size() <= 10 ? values : values.subList(0, 10);
     }
 
+    private boolean matchesDefinitionFilters(
+            CredentialDefinition definition,
+            String category,
+            Boolean active,
+            String programId
+    ) {
+        if (hasText(category) && !category.equalsIgnoreCase(definition.getCategory())) {
+            return false;
+        }
+        if (active != null && active != definition.isActive()) {
+            return false;
+        }
+        return !hasText(programId)
+                || (definition.getProgramIds() != null && definition.getProgramIds().contains(programId));
+    }
+
+    private void setCredentialDefinitionActive(String credentialID, boolean active) throws Exception {
+        requireText(credentialID, "credentialID is required");
+
+        DocumentReference definitionRef = firestore.collection(CREDENTIAL_DEFINITIONS_COLLECTION).document(credentialID);
+        if (!definitionRef.get().get().exists()) {
+            throw new IllegalArgumentException("Credential definition does not exist");
+        }
+
+        definitionRef.update(
+                "active", active,
+                "updatedAt", new Date()
+        ).get();
+    }
+
+    private void addIfPresent(Map<String, Object> updates, String fieldName, String value) {
+        if (value != null) {
+            updates.put(fieldName, value);
+        }
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+
     private String normalizeIcon(String icon) {
         if (icon == null || icon.isBlank()) {
             return "default-credential";
@@ -397,7 +549,7 @@ public class CredentialService {
     }
 
     private void requireText(String value, String message) {
-        if (value == null || value.isBlank()) {
+        if (!hasText(value)) {
             throw new IllegalArgumentException(message);
         }
     }

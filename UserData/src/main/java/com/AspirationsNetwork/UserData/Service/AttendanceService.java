@@ -1,8 +1,11 @@
 package com.AspirationsNetwork.UserData.Service;
 
 import com.AspirationsNetwork.UserData.DTO.AttendanceRecordCreationDTO;
+import com.AspirationsNetwork.UserData.DTO.AttendanceTotalsDTO;
 import com.AspirationsNetwork.UserData.Models.AttendanceRecord;
 import com.google.api.core.ApiFuture;
+import com.google.cloud.firestore.DocumentReference;
+import com.google.cloud.firestore.DocumentSnapshot;
 import com.google.cloud.firestore.FieldValue;
 import com.google.cloud.firestore.Firestore;
 import com.google.cloud.firestore.QueryDocumentSnapshot;
@@ -11,8 +14,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
@@ -78,6 +84,100 @@ public class AttendanceService {
         return records;
     }
 
+    public List<AttendanceRecord> getAttendanceRecords(String userUID, String programID, Date eventDate)
+            throws ExecutionException, InterruptedException {
+        ApiFuture<QuerySnapshot> future = firestore.collection(COLLECTION_NAME).get();
+        List<AttendanceRecord> records = new ArrayList<>();
+        for (QueryDocumentSnapshot document : future.get().getDocuments()) {
+            AttendanceRecord record = document.toObject(AttendanceRecord.class);
+            if (record != null && matchesFilters(record, userUID, programID, eventDate)) {
+                records.add(record);
+            }
+        }
+        return records;
+    }
+
+    public AttendanceTotalsDTO getAttendanceTotals(String userUID, String programID, Date eventDate)
+            throws ExecutionException, InterruptedException {
+        AttendanceTotalsDTO totals = new AttendanceTotalsDTO();
+        for (AttendanceRecord record : getAttendanceRecords(userUID, programID, eventDate)) {
+            totals.setTotalRecords(totals.getTotalRecords() + 1);
+            switch (normalizeStatus(record.getAttendanceStatus())) {
+                case "present" -> totals.setPresent(totals.getPresent() + 1);
+                case "absent" -> totals.setAbsent(totals.getAbsent() + 1);
+                case "excused" -> totals.setExcused(totals.getExcused() + 1);
+                case "pending" -> totals.setPending(totals.getPending() + 1);
+                default -> {
+                }
+            }
+        }
+        return totals;
+    }
+
+    public void updateAttendanceRecord(String attendanceRecordID, AttendanceRecordCreationDTO dto) throws Exception {
+        requireText(attendanceRecordID, "attendanceRecordID is required");
+        if (dto == null) {
+            throw new IllegalArgumentException("attendance record update request is required");
+        }
+        requireText(dto.getStaffRecorderUID(), "staffRecorderUID is required");
+
+        DocumentReference recordRef = firestore.collection(COLLECTION_NAME).document(attendanceRecordID);
+        DocumentSnapshot document = recordRef.get().get();
+        if (!document.exists()) {
+            throw new IllegalArgumentException("Attendance record does not exist");
+        }
+
+        AttendanceRecord existingRecord = document.toObject(AttendanceRecord.class);
+        if (existingRecord == null) {
+            throw new IllegalArgumentException("Attendance record does not exist");
+        }
+        if (hasText(dto.getUserUID()) && !dto.getUserUID().equals(existingRecord.getUserUID())) {
+            throw new IllegalArgumentException("userUID cannot be changed for an attendance record");
+        }
+
+        Map<String, Object> updates = new HashMap<>();
+        addIfPresent(updates, "programID", dto.getProgramID());
+        addIfPresent(updates, "eventName", dto.getEventName());
+        if (dto.getEventDate() != null) {
+            updates.put("eventDate", dto.getEventDate());
+        }
+        if (hasText(dto.getAttendanceStatus())) {
+            updates.put("attendanceStatus", normalizeStatus(dto.getAttendanceStatus()));
+        }
+        updates.put("staffRecorderUID", dto.getStaffRecorderUID());
+        updates.put("updatedAt", new Date());
+
+        recordRef.update(updates).get();
+
+        String updatedStatus = (String) updates.get("attendanceStatus");
+        String programID = hasText(dto.getProgramID()) ? dto.getProgramID() : existingRecord.getProgramID();
+        if ("present".equals(updatedStatus)) {
+            evaluateAttendanceAutoAwards(existingRecord.getUserUID(), programID, dto.getStaffRecorderUID());
+        }
+    }
+
+    public void deleteAttendanceRecord(String attendanceRecordID) throws Exception {
+        requireText(attendanceRecordID, "attendanceRecordID is required");
+
+        DocumentReference recordRef = firestore.collection(COLLECTION_NAME).document(attendanceRecordID);
+        DocumentSnapshot document = recordRef.get().get();
+        if (!document.exists()) {
+            throw new IllegalArgumentException("Attendance record does not exist");
+        }
+
+        AttendanceRecord existingRecord = document.toObject(AttendanceRecord.class);
+        if (existingRecord == null) {
+            throw new IllegalArgumentException("Attendance record does not exist");
+        }
+
+        recordRef.delete().get();
+
+        firestore.collection(UserInfoService.COLLECTION_NAME)
+                .document(existingRecord.getUserUID())
+                .update("attendanceRecordIds", FieldValue.arrayRemove(attendanceRecordID))
+                .get();
+    }
+
     private String normalizeStatus(String status) {
         String normalizedStatus = status == null || status.isBlank()
                 ? "pending"
@@ -96,12 +196,48 @@ public class AttendanceService {
         }
     }
 
+    private void addIfPresent(Map<String, Object> updates, String fieldName, String value) {
+        if (hasText(value)) {
+            updates.put(fieldName, value);
+        }
+    }
+
+    private boolean matchesFilters(AttendanceRecord record, String userUID, String programID, Date eventDate) {
+        if (hasText(userUID) && !userUID.equals(record.getUserUID())) {
+            return false;
+        }
+        if (hasText(programID) && !programID.equals(record.getProgramID())) {
+            return false;
+        }
+        return eventDate == null || sameDay(eventDate, record.getEventDate());
+    }
+
+    private boolean sameDay(Date expected, Date actual) {
+        if (actual == null) {
+            return false;
+        }
+        Calendar expectedCalendar = Calendar.getInstance();
+        expectedCalendar.setTime(expected);
+        Calendar actualCalendar = Calendar.getInstance();
+        actualCalendar.setTime(actual);
+        return expectedCalendar.get(Calendar.YEAR) == actualCalendar.get(Calendar.YEAR)
+                && expectedCalendar.get(Calendar.DAY_OF_YEAR) == actualCalendar.get(Calendar.DAY_OF_YEAR);
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+
     private void evaluateAttendanceAutoAwards(AttendanceRecordCreationDTO dto) {
+        evaluateAttendanceAutoAwards(dto.getUserUID(), dto.getProgramID(), dto.getStaffRecorderUID());
+    }
+
+    private void evaluateAttendanceAutoAwards(String userUID, String programID, String staffRecorderUID) {
         try {
             credentialService.evaluateAttendanceAutoAwards(
-                    dto.getUserUID(),
-                    dto.getProgramID(),
-                    dto.getStaffRecorderUID()
+                    userUID,
+                    programID,
+                    staffRecorderUID
             );
         } catch (Exception e) {
             System.err.println("Attendance auto-award evaluation failed: " + e.getMessage());

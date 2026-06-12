@@ -3,6 +3,8 @@ package com.AspirationsNetwork.UserData.Service;
 import com.AspirationsNetwork.UserData.DTO.AwardCredentialDTO;
 import com.AspirationsNetwork.UserData.DTO.AvailableCredentialDTO;
 import com.AspirationsNetwork.UserData.DTO.CredentialDefinitionCreationDTO;
+import com.AspirationsNetwork.UserData.DTO.CredentialDefinitionUpdateDTO;
+import com.AspirationsNetwork.UserData.DTO.CredentialTotalsDTO;
 import com.AspirationsNetwork.UserData.DTO.EarnedCredentialDisplayDTO;
 import com.AspirationsNetwork.UserData.Models.CredentialDefinition;
 import com.AspirationsNetwork.UserData.Models.CredentialRequirement;
@@ -21,6 +23,7 @@ import org.mockito.ArgumentCaptor;
 
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -96,6 +99,185 @@ class CredentialServiceTest {
         );
 
         assertEquals("createdByStaffUID is required", exception.getMessage());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void getCredentialDefinitionsFiltersByCategoryActiveStatusAndProgram() throws Exception {
+        Firestore firestore = mock(Firestore.class);
+        CollectionReference definitionsCollection = mock(CollectionReference.class);
+        ApiFuture<QuerySnapshot> definitionsFuture = mock(ApiFuture.class);
+        QuerySnapshot definitionsSnapshot = mock(QuerySnapshot.class);
+        QueryDocumentSnapshot matchingDocument = mock(QueryDocumentSnapshot.class);
+        QueryDocumentSnapshot inactiveDocument = mock(QueryDocumentSnapshot.class);
+        CredentialDefinition matchingDefinition = credentialDefinition(
+                "credential-rwd",
+                "RWD",
+                true,
+                List.of("program-123")
+        );
+        CredentialDefinition inactiveDefinition = credentialDefinition(
+                "credential-rwd-inactive",
+                "RWD",
+                false,
+                List.of("program-123")
+        );
+
+        when(firestore.collection(CredentialService.CREDENTIAL_DEFINITIONS_COLLECTION))
+                .thenReturn(definitionsCollection);
+        when(definitionsCollection.get()).thenReturn(definitionsFuture);
+        when(definitionsFuture.get()).thenReturn(definitionsSnapshot);
+        when(definitionsSnapshot.getDocuments()).thenReturn(List.of(matchingDocument, inactiveDocument));
+        when(matchingDocument.toObject(CredentialDefinition.class)).thenReturn(matchingDefinition);
+        when(inactiveDocument.toObject(CredentialDefinition.class)).thenReturn(inactiveDefinition);
+
+        CredentialService service = new CredentialService(firestore, mock(NotificationService.class), mock(PlatformEventService.class));
+        List<CredentialDefinition> definitions = service.getCredentialDefinitions("rwd", true, "program-123");
+
+        assertEquals(1, definitions.size());
+        assertEquals("credential-rwd", definitions.get(0).getCredentialID());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void getCredentialDefinitionReturnsDefinitionDetails() throws Exception {
+        Firestore firestore = mock(Firestore.class);
+        CollectionReference definitionsCollection = mock(CollectionReference.class);
+        DocumentReference definitionDocument = mock(DocumentReference.class);
+        DocumentSnapshot definitionSnapshot = mock(DocumentSnapshot.class);
+        ApiFuture<DocumentSnapshot> definitionFuture = mock(ApiFuture.class);
+        CredentialDefinition definition = credentialDefinition("credential-123", "RWD", true, List.of("program-123"));
+
+        when(firestore.collection(CredentialService.CREDENTIAL_DEFINITIONS_COLLECTION))
+                .thenReturn(definitionsCollection);
+        when(definitionsCollection.document("credential-123")).thenReturn(definitionDocument);
+        when(definitionDocument.get()).thenReturn(definitionFuture);
+        when(definitionFuture.get()).thenReturn(definitionSnapshot);
+        when(definitionSnapshot.exists()).thenReturn(true);
+        when(definitionSnapshot.toObject(CredentialDefinition.class)).thenReturn(definition);
+
+        CredentialService service = new CredentialService(firestore, mock(NotificationService.class), mock(PlatformEventService.class));
+        CredentialDefinition result = service.getCredentialDefinition("credential-123");
+
+        assertEquals("credential-123", result.getCredentialID());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void updateCredentialDefinitionUpdatesNullableCatalogFields() throws Exception {
+        Firestore firestore = mock(Firestore.class);
+        CollectionReference definitionsCollection = mock(CollectionReference.class);
+        DocumentReference definitionDocument = mock(DocumentReference.class);
+        DocumentSnapshot definitionSnapshot = mock(DocumentSnapshot.class);
+        ApiFuture<DocumentSnapshot> definitionFuture = mock(ApiFuture.class);
+        ApiFuture<WriteResult> updateFuture = mock(ApiFuture.class);
+
+        when(firestore.collection(CredentialService.CREDENTIAL_DEFINITIONS_COLLECTION))
+                .thenReturn(definitionsCollection);
+        when(definitionsCollection.document("credential-123")).thenReturn(definitionDocument);
+        when(definitionDocument.get()).thenReturn(definitionFuture);
+        when(definitionFuture.get()).thenReturn(definitionSnapshot);
+        when(definitionSnapshot.exists()).thenReturn(true);
+        when(definitionDocument.update(any(Map.class))).thenReturn(updateFuture);
+        when(updateFuture.get()).thenReturn(mock(WriteResult.class));
+
+        CredentialDefinitionUpdateDTO dto = new CredentialDefinitionUpdateDTO();
+        dto.setCredentialName("Updated credential");
+        dto.setIcon("");
+        dto.setActive(false);
+        dto.setProgramIds(List.of("program-123"));
+        dto.setAutoAwardEnabled(true);
+
+        CredentialService service = new CredentialService(firestore, mock(NotificationService.class), mock(PlatformEventService.class));
+        service.updateCredentialDefinition("credential-123", dto);
+
+        ArgumentCaptor<Map> updateCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(definitionDocument).update(updateCaptor.capture());
+        assertEquals("Updated credential", updateCaptor.getValue().get("credentialName"));
+        assertEquals("default-credential", updateCaptor.getValue().get("icon"));
+        assertEquals(false, updateCaptor.getValue().get("active"));
+        assertEquals(List.of("program-123"), updateCaptor.getValue().get("programIds"));
+        assertEquals(true, updateCaptor.getValue().get("autoAwardEnabled"));
+        assertTrue(updateCaptor.getValue().containsKey("updatedAt"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void archiveAndRestoreCredentialDefinitionsToggleActiveStatus() throws Exception {
+        Firestore firestore = mock(Firestore.class);
+        CollectionReference definitionsCollection = mock(CollectionReference.class);
+        DocumentReference definitionDocument = mock(DocumentReference.class);
+        DocumentSnapshot definitionSnapshot = mock(DocumentSnapshot.class);
+        ApiFuture<DocumentSnapshot> definitionFuture = mock(ApiFuture.class);
+        ApiFuture<WriteResult> archiveFuture = mock(ApiFuture.class);
+        ApiFuture<WriteResult> restoreFuture = mock(ApiFuture.class);
+
+        when(firestore.collection(CredentialService.CREDENTIAL_DEFINITIONS_COLLECTION))
+                .thenReturn(definitionsCollection);
+        when(definitionsCollection.document("credential-123")).thenReturn(definitionDocument);
+        when(definitionDocument.get()).thenReturn(definitionFuture);
+        when(definitionFuture.get()).thenReturn(definitionSnapshot);
+        when(definitionSnapshot.exists()).thenReturn(true);
+        when(definitionDocument.update(
+                eq("active"), eq(false),
+                eq("updatedAt"), any()
+        )).thenReturn(archiveFuture);
+        when(definitionDocument.update(
+                eq("active"), eq(true),
+                eq("updatedAt"), any()
+        )).thenReturn(restoreFuture);
+        when(archiveFuture.get()).thenReturn(mock(WriteResult.class));
+        when(restoreFuture.get()).thenReturn(mock(WriteResult.class));
+
+        CredentialService service = new CredentialService(firestore, mock(NotificationService.class), mock(PlatformEventService.class));
+        service.archiveCredentialDefinition("credential-123");
+        service.restoreCredentialDefinition("credential-123");
+
+        verify(definitionDocument).update(eq("active"), eq(false), eq("updatedAt"), any());
+        verify(definitionDocument).update(eq("active"), eq(true), eq("updatedAt"), any());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void getCredentialTotalsCountsDefinitionsAndEarnedCredentialsByCategory() throws Exception {
+        Firestore firestore = mock(Firestore.class);
+        CollectionReference definitionsCollection = mock(CollectionReference.class);
+        CollectionReference earnedCollection = mock(CollectionReference.class);
+        ApiFuture<QuerySnapshot> definitionsFuture = mock(ApiFuture.class);
+        ApiFuture<QuerySnapshot> earnedFuture = mock(ApiFuture.class);
+        QuerySnapshot definitionsSnapshot = mock(QuerySnapshot.class);
+        QuerySnapshot earnedSnapshot = mock(QuerySnapshot.class);
+        QueryDocumentSnapshot rwdDefinitionDocument = mock(QueryDocumentSnapshot.class);
+        QueryDocumentSnapshot archivedDefinitionDocument = mock(QueryDocumentSnapshot.class);
+        QueryDocumentSnapshot earnedDocument = mock(QueryDocumentSnapshot.class);
+        CredentialDefinition rwdDefinition = credentialDefinition("credential-rwd", "RWD", true, List.of("program-123"));
+        CredentialDefinition archivedDefinition = credentialDefinition("credential-old", "RWD", false, List.of("program-123"));
+        EarnedCredential earnedCredential = new EarnedCredential();
+        earnedCredential.setCredentialID("credential-rwd");
+
+        when(firestore.collection(CredentialService.CREDENTIAL_DEFINITIONS_COLLECTION))
+                .thenReturn(definitionsCollection);
+        when(firestore.collection(CredentialService.EARNED_CREDENTIALS_COLLECTION))
+                .thenReturn(earnedCollection);
+        when(definitionsCollection.get()).thenReturn(definitionsFuture);
+        when(definitionsFuture.get()).thenReturn(definitionsSnapshot);
+        when(definitionsSnapshot.getDocuments()).thenReturn(List.of(rwdDefinitionDocument, archivedDefinitionDocument));
+        when(rwdDefinitionDocument.toObject(CredentialDefinition.class)).thenReturn(rwdDefinition);
+        when(archivedDefinitionDocument.toObject(CredentialDefinition.class)).thenReturn(archivedDefinition);
+        when(earnedCollection.get()).thenReturn(earnedFuture);
+        when(earnedFuture.get()).thenReturn(earnedSnapshot);
+        when(earnedSnapshot.getDocuments()).thenReturn(List.of(earnedDocument));
+        when(earnedDocument.toObject(EarnedCredential.class)).thenReturn(earnedCredential);
+
+        CredentialService service = new CredentialService(firestore, mock(NotificationService.class), mock(PlatformEventService.class));
+        CredentialTotalsDTO totals = service.getCredentialTotals("RWD", "program-123");
+
+        assertEquals(2, totals.getTotalDefinitions());
+        assertEquals(1, totals.getActiveDefinitions());
+        assertEquals(1, totals.getArchivedDefinitions());
+        assertEquals(1, totals.getTotalEarnedCredentials());
+        assertEquals(2, totals.getDefinitionsByCategory().get("RWD"));
+        assertEquals(1, totals.getEarnedCredentialsByCategory().get("RWD"));
     }
 
     @Test
@@ -372,5 +554,20 @@ class CredentialServiceTest {
                 "credential-123",
                 awardedCredentialIds.get(0)
         );
+    }
+
+    private CredentialDefinition credentialDefinition(
+            String credentialID,
+            String category,
+            boolean active,
+            List<String> programIds
+    ) {
+        CredentialDefinition definition = new CredentialDefinition();
+        definition.setCredentialID(credentialID);
+        definition.setCredentialName("Credential " + credentialID);
+        definition.setCategory(category);
+        definition.setActive(active);
+        definition.setProgramIds(programIds);
+        return definition;
     }
 }
