@@ -5,6 +5,7 @@ import com.AspirationsNetwork.UserData.DTO.RwdLearningCenterItemDTO;
 import com.AspirationsNetwork.UserData.DTO.RwdProgressDTO;
 import com.AspirationsNetwork.UserData.Models.RwdActivity;
 import com.AspirationsNetwork.UserData.Models.RwdProgress;
+import com.AspirationsNetwork.UserData.Models.PlatformEventType;
 import com.google.api.core.ApiFuture;
 import com.google.cloud.firestore.DocumentSnapshot;
 import com.google.cloud.firestore.Firestore;
@@ -52,6 +53,7 @@ public class RwdLearningService {
 
     private final Firestore firestore;
     private final CredentialService credentialService;
+    private final PlatformEventService platformEventService;
 
     public String createRwdActivity(RwdActivityDTO dto) throws Exception {
         requireText(dto.getCountryName(), "countryName is required");
@@ -155,6 +157,7 @@ public class RwdLearningService {
             progress.setUserUID(userUID);
             progress.setRwdActivityId(dto.getRwdActivityId());
         }
+        String previousCompletionStatus = progress.getCompletionStatus();
 
         Integer quizScore = dto.getQuizScore();
         if (quizScore != null) {
@@ -182,6 +185,15 @@ public class RwdLearningService {
                 .document(progress.getProgressId())
                 .set(progress)
                 .get();
+
+        if ("completed".equals(progress.getCompletionStatus())
+                && !"completed".equals(previousCompletionStatus)) {
+            platformEventService.trackEventSafely(
+                    userUID,
+                    PlatformEventType.RWD_ACTIVITY_COMPLETED,
+                    Map.of("activityId", dto.getRwdActivityId())
+            );
+        }
 
         return progress;
     }

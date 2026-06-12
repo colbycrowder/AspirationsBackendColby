@@ -53,7 +53,7 @@ class NotificationServiceTest {
         when(notificationDocument.set(any(Notification.class))).thenReturn(writeFuture);
         when(writeFuture.get()).thenReturn(mock(WriteResult.class));
 
-        NotificationService service = new NotificationService(firestore);
+        NotificationService service = new NotificationService(firestore, mock(PlatformEventService.class));
         String notificationId = service.createCredentialEarnedNotification(
                 "youth-123",
                 "credential-123",
@@ -93,7 +93,7 @@ class NotificationServiceTest {
         when(unreadFuture.get()).thenReturn(unreadSnapshot);
         when(unreadSnapshot.getDocuments()).thenReturn(List.of(notificationDocumentOne, notificationDocumentTwo));
 
-        NotificationService service = new NotificationService(firestore);
+        NotificationService service = new NotificationService(firestore, mock(PlatformEventService.class));
 
         assertEquals(2, service.getUnreadNotificationCount("youth-123"));
     }
@@ -124,7 +124,7 @@ class NotificationServiceTest {
         when(oldDocument.toObject(Notification.class)).thenReturn(oldNotification);
         when(newDocument.toObject(Notification.class)).thenReturn(newNotification);
 
-        NotificationService service = new NotificationService(firestore);
+        NotificationService service = new NotificationService(firestore, mock(PlatformEventService.class));
         List<Notification> notifications = service.getNotificationsForUser("youth-123");
 
         assertEquals("new", notifications.get(0).getNotificationId());
@@ -147,7 +147,7 @@ class NotificationServiceTest {
         when(notificationSnapshot.exists()).thenReturn(true);
         when(notificationSnapshot.getString("userUID")).thenReturn("other-user");
 
-        NotificationService service = new NotificationService(firestore);
+        NotificationService service = new NotificationService(firestore, mock(PlatformEventService.class));
 
         assertThrows(
                 ForbiddenAccessException.class,
@@ -174,7 +174,7 @@ class NotificationServiceTest {
         when(notificationDocument.update(eq("read"), eq(true))).thenReturn(updateFuture);
         when(updateFuture.get()).thenReturn(mock(WriteResult.class));
 
-        NotificationService service = new NotificationService(firestore);
+        NotificationService service = new NotificationService(firestore, mock(PlatformEventService.class));
         service.markNotificationAsRead("youth-123", "notification-123");
 
         verify(notificationDocument).update("read", true);

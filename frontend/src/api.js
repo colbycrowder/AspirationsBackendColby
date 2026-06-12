@@ -62,6 +62,28 @@ export async function fetchYouthDashboard(user) {
   return dashboard;
 }
 
+export async function trackPlatformEvent(user, eventType, metadata = {}) {
+  if (!user || !eventType) {
+    return null;
+  }
+
+  const token = await user.getIdToken();
+  const response = await fetch(`${trimTrailingSlash(appConfig.apiBaseUrl)}/api/me/platform-events`, {
+    body: JSON.stringify({ eventType, metadata }),
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+  });
+
+  if (!response.ok) {
+    return null;
+  }
+
+  return response.text();
+}
+
 export async function fetchMyProfile(user) {
   if (!user) {
     throw new Error("A signed-in Firebase user is required.");

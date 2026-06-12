@@ -45,7 +45,7 @@ class RwdLearningServiceTest {
         dto.setTitle("Bangladesh RWD Activity");
         dto.setDescription("Externally hosted movement map activity");
 
-        RwdLearningService service = new RwdLearningService(firestore, credentialService);
+        RwdLearningService service = new RwdLearningService(firestore, credentialService, mock(PlatformEventService.class));
         String rwdActivityId = service.createRwdActivity(dto);
 
         ArgumentCaptor<RwdActivity> activityCaptor = ArgumentCaptor.forClass(RwdActivity.class);
@@ -102,7 +102,7 @@ class RwdLearningServiceTest {
         dto.setRwdActivityId("rwd-123");
         dto.setQuizScore(80);
 
-        RwdLearningService service = new RwdLearningService(firestore, credentialService);
+        RwdLearningService service = new RwdLearningService(firestore, credentialService, mock(PlatformEventService.class));
         RwdProgress progress = service.saveProgressForUser("youth-123", dto);
 
         assertEquals("completed", progress.getCompletionStatus());

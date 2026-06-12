@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { fetchYouthDashboard } from "../api.js";
+import { fetchYouthDashboard, trackPlatformEvent } from "../api.js";
 import { useAuth } from "../auth/AuthContext.jsx";
 
 export function ServiceHoursPage() {
@@ -19,6 +19,7 @@ export function ServiceHoursPage() {
         const data = await fetchYouthDashboard(user);
         if (isActive) {
           setDashboard(data);
+          trackPlatformEvent(user, "SERVICE_HOURS_VIEWED").catch(() => {});
         }
       } catch (nextError) {
         if (isActive) {

@@ -5,6 +5,7 @@ import {
   signInWithEmailAndPassword,
   signOut,
 } from "firebase/auth";
+import { trackPlatformEvent } from "../api.js";
 import { auth } from "../firebase.js";
 
 const AuthContext = createContext(null);
@@ -24,6 +25,7 @@ export function AuthProvider({ children }) {
 
   async function login(email, password) {
     const credential = await signInWithEmailAndPassword(auth, email, password);
+    trackPlatformEvent(credential.user, "LOGIN").catch(() => {});
     return credential.user;
   }
 

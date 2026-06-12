@@ -5,6 +5,7 @@ import com.AspirationsNetwork.UserData.DTO.AwardCredentialDTO;
 import com.AspirationsNetwork.UserData.DTO.CredentialDefinitionCreationDTO;
 import com.AspirationsNetwork.UserData.DTO.EarnedCredentialDisplayDTO;
 import com.AspirationsNetwork.UserData.DTO.PlatformMetricsDTO;
+import com.AspirationsNetwork.UserData.DTO.PlatformEventRequestDTO;
 import com.AspirationsNetwork.UserData.DTO.ProgramEnrollmentDTO;
 import com.AspirationsNetwork.UserData.DTO.ProgramDTO;
 import com.AspirationsNetwork.UserData.DTO.RwdActivityDTO;
@@ -16,6 +17,7 @@ import com.AspirationsNetwork.UserData.DTO.UserProfileCreationDTO;
 import com.AspirationsNetwork.UserData.DTO.UserProfileWithCredentialsDTO;
 import com.AspirationsNetwork.UserData.DTO.YouthDashboardDTO;
 import com.AspirationsNetwork.UserData.DTO.YouthSelfServiceProfileDTO;
+import com.AspirationsNetwork.UserData.Models.PlatformEventType;
 import com.AspirationsNetwork.UserData.Models.AttendanceRecord;
 import com.AspirationsNetwork.UserData.Models.Comment;
 import com.AspirationsNetwork.UserData.Models.DiscussionPost;
@@ -34,6 +36,7 @@ import com.AspirationsNetwork.UserData.Service.DiscussionPostService;
 import com.AspirationsNetwork.UserData.Service.ForbiddenAccessException;
 import com.AspirationsNetwork.UserData.Service.MetricsService;
 import com.AspirationsNetwork.UserData.Service.NotificationService;
+import com.AspirationsNetwork.UserData.Service.PlatformEventService;
 import com.AspirationsNetwork.UserData.Service.ProgramEnrollmentService;
 import com.AspirationsNetwork.UserData.Service.ProgramService;
 import com.AspirationsNetwork.UserData.Service.RwdLearningService;
@@ -46,6 +49,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -71,6 +75,7 @@ class UserInfoControllerTest {
     private final SystemSettingsService systemSettingsService = mock(SystemSettingsService.class);
     private final NotificationService notificationService = mock(NotificationService.class);
     private final MetricsService metricsService = mock(MetricsService.class);
+    private final PlatformEventService platformEventService = mock(PlatformEventService.class);
     private final UserInfoController controller = new UserInfoController(
             userInfoService,
             discussionPostService,
@@ -84,7 +89,8 @@ class UserInfoControllerTest {
             rwdLearningService,
             systemSettingsService,
             notificationService,
-            metricsService
+            metricsService,
+            platformEventService
     );
 
     @Test
@@ -215,6 +221,42 @@ class UserInfoControllerTest {
 
         assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
         assertEquals("Authorization bearer token is required", response.getBody());
+    }
+
+    @Test
+    void trackMyPlatformEventUsesVerifiedUserUidForClientTrackableEvent() throws Exception {
+        PlatformEventRequestDTO dto = new PlatformEventRequestDTO();
+        dto.setEventType("DASHBOARD_VIEW");
+        dto.setMetadata(Map.of("source", "dashboard"));
+        when(authService.requireAuthenticatedUserUid("Bearer youth-token")).thenReturn("verified-youth-123");
+        when(platformEventService.trackEventForUser(
+                "verified-youth-123",
+                PlatformEventType.DASHBOARD_VIEW,
+                dto.getMetadata()
+        )).thenReturn("event-123");
+
+        ResponseEntity<String> response = controller.trackMyPlatformEvent("Bearer youth-token", dto);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("Tracked", response.getBody());
+        verify(platformEventService).trackEventForUser(
+                "verified-youth-123",
+                PlatformEventType.DASHBOARD_VIEW,
+                dto.getMetadata()
+        );
+    }
+
+    @Test
+    void trackMyPlatformEventRejectsServerOwnedEventTypesFromClient() {
+        PlatformEventRequestDTO dto = new PlatformEventRequestDTO();
+        dto.setEventType("CREDENTIAL_EARNED");
+        when(authService.requireAuthenticatedUserUid("Bearer youth-token")).thenReturn("verified-youth-123");
+
+        ResponseEntity<String> response = controller.trackMyPlatformEvent("Bearer youth-token", dto);
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertEquals("eventType is not client-trackable", response.getBody());
+        verifyNoInteractions(platformEventService);
     }
 
     @Test

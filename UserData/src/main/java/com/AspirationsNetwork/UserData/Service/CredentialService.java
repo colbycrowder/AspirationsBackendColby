@@ -6,6 +6,7 @@ import com.AspirationsNetwork.UserData.DTO.CredentialDefinitionCreationDTO;
 import com.AspirationsNetwork.UserData.DTO.EarnedCredentialDisplayDTO;
 import com.AspirationsNetwork.UserData.Models.CredentialDefinition;
 import com.AspirationsNetwork.UserData.Models.EarnedCredential;
+import com.AspirationsNetwork.UserData.Models.PlatformEventType;
 import com.google.api.core.ApiFuture;
 import com.google.cloud.firestore.DocumentReference;
 import com.google.cloud.firestore.DocumentSnapshot;
@@ -21,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -33,6 +35,7 @@ public class CredentialService {
 
     private final Firestore firestore;
     private final NotificationService notificationService;
+    private final PlatformEventService platformEventService;
 
     public String createCredentialDefinition(CredentialDefinitionCreationDTO dto) throws Exception {
         requireText(dto.getCreatedByStaffUID(), "createdByStaffUID is required");
@@ -112,6 +115,7 @@ public class CredentialService {
 
         userRef.update("earnedCredentialIds", FieldValue.arrayUnion(earnedCredentialID)).get();
         createCredentialEarnedNotificationSafely(dto.getUserUID(), dto.getCredentialID(), earnedCredentialID);
+        trackCredentialEarnedEventSafely(dto.getUserUID(), dto.getCredentialID(), earnedCredentialID, "manual_award");
 
         return earnedCredentialID;
     }
@@ -325,8 +329,26 @@ public class CredentialService {
                 .get();
 
         createCredentialEarnedNotificationSafely(userUID, credentialID, earnedCredentialID);
+        trackCredentialEarnedEventSafely(userUID, credentialID, earnedCredentialID, "system_award");
 
         return earnedCredentialID;
+    }
+
+    private void trackCredentialEarnedEventSafely(
+            String userUID,
+            String credentialID,
+            String earnedCredentialID,
+            String credentialType
+    ) {
+        platformEventService.trackEventSafely(
+                userUID,
+                PlatformEventType.CREDENTIAL_EARNED,
+                Map.of(
+                        "credentialId", credentialID,
+                        "earnedCredentialId", earnedCredentialID,
+                        "credentialType", credentialType
+                )
+        );
     }
 
     private void createCredentialEarnedNotificationSafely(

@@ -4,6 +4,7 @@ import com.AspirationsNetwork.UserData.DTO.AttendanceRecordCreationDTO;
 import com.AspirationsNetwork.UserData.DTO.AwardCredentialDTO;
 import com.AspirationsNetwork.UserData.DTO.CredentialDefinitionCreationDTO;
 import com.AspirationsNetwork.UserData.DTO.PlatformMetricsDTO;
+import com.AspirationsNetwork.UserData.DTO.PlatformEventRequestDTO;
 import com.AspirationsNetwork.UserData.DTO.ProgramEnrollmentDTO;
 import com.AspirationsNetwork.UserData.DTO.ProgramDTO;
 import com.AspirationsNetwork.UserData.DTO.RwdActivityDTO;
@@ -21,6 +22,7 @@ import com.AspirationsNetwork.UserData.Models.AttendanceRecord;
 import com.AspirationsNetwork.UserData.Models.Comment;
 import com.AspirationsNetwork.UserData.Models.DiscussionPost;
 import com.AspirationsNetwork.UserData.Models.Notification;
+import com.AspirationsNetwork.UserData.Models.PlatformEventType;
 import com.AspirationsNetwork.UserData.Models.Program;
 import com.AspirationsNetwork.UserData.Models.ProgramEnrollment;
 import com.AspirationsNetwork.UserData.Models.RwdActivity;
@@ -35,6 +37,7 @@ import com.AspirationsNetwork.UserData.Service.DiscussionPostService;
 import com.AspirationsNetwork.UserData.Service.ForbiddenAccessException;
 import com.AspirationsNetwork.UserData.Service.MetricsService;
 import com.AspirationsNetwork.UserData.Service.NotificationService;
+import com.AspirationsNetwork.UserData.Service.PlatformEventService;
 import com.AspirationsNetwork.UserData.Service.ProgramEnrollmentService;
 import com.AspirationsNetwork.UserData.Service.ProgramService;
 import com.AspirationsNetwork.UserData.Service.RwdLearningService;
@@ -48,6 +51,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 
 @RestController
 @RequiredArgsConstructor
@@ -67,6 +72,7 @@ public class UserInfoController {
     private final SystemSettingsService systemSettingsService;
     private final NotificationService notificationService;
     private final MetricsService metricsService;
+    private final PlatformEventService platformEventService;
 
     @GetMapping("/getUser/{id}")
     public ResponseEntity<User> getUser(@PathVariable String id) {
@@ -109,7 +115,16 @@ public class UserInfoController {
     ) {
         try {
             String userUID = authService.requireAuthenticatedUserUid(authorizationHeader);
+            User existingUser = userInfoService.getUser(userUID);
             User user = userInfoService.completeYouthProfile(userUID, dto);
+            if (existingUser == null) {
+                platformEventService.trackEventSafely(
+                        userUID,
+                        PlatformEventType.ACCOUNT_CREATED,
+                        Map.of("source", "protected_profile_flow")
+                );
+            }
+            platformEventService.trackEventSafely(userUID, PlatformEventType.PROFILE_COMPLETED);
 
             YouthSelfServiceProfileDTO response = new YouthSelfServiceProfileDTO();
             response.setUser(user);
@@ -178,6 +193,39 @@ public class UserInfoController {
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body("Error updating notification");
         }
+    }
+
+    @PostMapping("/me/platform-events")
+    public ResponseEntity<String> trackMyPlatformEvent(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestBody PlatformEventRequestDTO dto
+    ) {
+        try {
+            String userUID = authService.requireAuthenticatedUserUid(authorizationHeader);
+            if (dto == null || dto.getEventType() == null || dto.getEventType().isBlank()) {
+                return ResponseEntity.badRequest().body("eventType is required");
+            }
+            PlatformEventType eventType = PlatformEventType.valueOf(dto.getEventType().trim().toUpperCase());
+            if (!isClientTrackableEvent(eventType)) {
+                return ResponseEntity.badRequest().body("eventType is not client-trackable");
+            }
+            Map<String, Object> metadata = dto.getMetadata() == null ? new HashMap<>() : dto.getMetadata();
+            platformEventService.trackEventForUser(userUID, eventType, metadata);
+            return ResponseEntity.ok("Tracked");
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Error tracking platform event");
+        }
+    }
+
+    private boolean isClientTrackableEvent(PlatformEventType eventType) {
+        return eventType == PlatformEventType.LOGIN
+                || eventType == PlatformEventType.DASHBOARD_VIEW
+                || eventType == PlatformEventType.SERVICE_HOURS_VIEWED
+                || eventType == PlatformEventType.RWD_ACTIVITY_VIEWED;
     }
 
     @GetMapping("/staff/metrics")
@@ -274,6 +322,14 @@ public class UserInfoController {
             String userUID = authService.requireAuthenticatedUserUid(authorizationHeader);
             String programId = dto == null ? null : dto.getProgramId();
             String enrollmentId = programEnrollmentService.enrollYouthInProgram(userUID, programId);
+            platformEventService.trackEventSafely(
+                    userUID,
+                    PlatformEventType.PROGRAM_ENROLLED,
+                    Map.of(
+                            "programId", programId,
+                            "enrollmentId", enrollmentId
+                    )
+            );
             return ResponseEntity.ok(enrollmentId);
         } catch (UnauthorizedAccessException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());

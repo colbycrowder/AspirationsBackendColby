@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { fetchYouthDashboard, saveRwdProgress } from "../api.js";
+import { fetchYouthDashboard, saveRwdProgress, trackPlatformEvent } from "../api.js";
 import { useAuth } from "../auth/AuthContext.jsx";
 
 export function RwdLearningCenterPage() {
@@ -147,7 +147,17 @@ export function RwdLearningCenterPage() {
 
                   <div className="rwd-actions">
                     {item.externalUrl ? (
-                      <a className="primary-action link-action" href={item.externalUrl} target="_blank" rel="noreferrer">
+                      <a
+                        className="primary-action link-action"
+                        href={item.externalUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={() =>
+                          trackPlatformEvent(user, "RWD_ACTIVITY_VIEWED", {
+                            activityId: item.rwdActivityId,
+                          }).catch(() => {})
+                        }
+                      >
                         Open Activity
                       </a>
                     ) : null}

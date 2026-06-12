@@ -2,6 +2,7 @@ package com.AspirationsNetwork.UserData.Service;
 
 import com.AspirationsNetwork.UserData.Models.CredentialDefinition;
 import com.AspirationsNetwork.UserData.Models.Notification;
+import com.AspirationsNetwork.UserData.Models.PlatformEventType;
 import com.google.api.core.ApiFuture;
 import com.google.cloud.firestore.DocumentReference;
 import com.google.cloud.firestore.DocumentSnapshot;
@@ -24,6 +25,7 @@ public class NotificationService {
     public static final String CREDENTIAL_EARNED_TYPE = "credential_earned";
 
     private final Firestore firestore;
+    private final PlatformEventService platformEventService;
 
     public String createCredentialEarnedNotification(
             String userUID,
@@ -108,7 +110,15 @@ public class NotificationService {
             throw new ForbiddenAccessException("Notification does not belong to signed-in user");
         }
 
+        Boolean alreadyRead = notificationDocument.getBoolean("read");
         notificationRef.update("read", true).get();
+        if (!Boolean.TRUE.equals(alreadyRead)) {
+            platformEventService.trackEventSafely(
+                    userUID,
+                    PlatformEventType.NOTIFICATION_VIEWED,
+                    java.util.Map.of("notificationId", notificationId)
+            );
+        }
     }
 
     private CredentialDefinition getCredentialDefinition(String credentialID) throws Exception {

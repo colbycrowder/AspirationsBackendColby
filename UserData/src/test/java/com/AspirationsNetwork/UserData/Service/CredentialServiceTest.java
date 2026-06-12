@@ -63,7 +63,7 @@ class CredentialServiceTest {
         dto.setRequiredAttendanceCount(3);
         dto.setCreatedByStaffUID("staff-123");
 
-        CredentialService service = new CredentialService(firestore, mock(NotificationService.class));
+        CredentialService service = new CredentialService(firestore, mock(NotificationService.class), mock(PlatformEventService.class));
         String credentialID = service.createCredentialDefinition(dto);
 
         ArgumentCaptor<CredentialDefinition> definitionCaptor = ArgumentCaptor.forClass(CredentialDefinition.class);
@@ -87,7 +87,7 @@ class CredentialServiceTest {
 
     @Test
     void createCredentialDefinitionRequiresStaffUid() {
-        CredentialService service = new CredentialService(mock(Firestore.class), mock(NotificationService.class));
+        CredentialService service = new CredentialService(mock(Firestore.class), mock(NotificationService.class), mock(PlatformEventService.class));
         CredentialDefinitionCreationDTO dto = new CredentialDefinitionCreationDTO();
 
         IllegalArgumentException exception = assertThrows(
@@ -139,7 +139,7 @@ class CredentialServiceTest {
         dto.setUserUID("user-123");
         dto.setAwardedByStaffUID("staff-123");
 
-        CredentialService service = new CredentialService(firestore, notificationService);
+        CredentialService service = new CredentialService(firestore, notificationService, mock(PlatformEventService.class));
         String earnedCredentialID = service.awardCredentialToYouth(dto);
 
         ArgumentCaptor<EarnedCredential> earnedCaptor = ArgumentCaptor.forClass(EarnedCredential.class);
@@ -200,7 +200,7 @@ class CredentialServiceTest {
         when(definitionSnapshot.exists()).thenReturn(true);
         when(definitionSnapshot.toObject(CredentialDefinition.class)).thenReturn(definition);
 
-        CredentialService service = new CredentialService(firestore, mock(NotificationService.class));
+        CredentialService service = new CredentialService(firestore, mock(NotificationService.class), mock(PlatformEventService.class));
         List<EarnedCredentialDisplayDTO> credentials = service.getEarnedCredentialsForUser("user-123");
 
         assertEquals(1, credentials.size());
@@ -263,7 +263,7 @@ class CredentialServiceTest {
         when(availableDefinitionDocument.toObject(CredentialDefinition.class)).thenReturn(availableDefinition);
         when(earnedDefinitionDocument.toObject(CredentialDefinition.class)).thenReturn(earnedDefinition);
 
-        CredentialService service = new CredentialService(firestore, mock(NotificationService.class));
+        CredentialService service = new CredentialService(firestore, mock(NotificationService.class), mock(PlatformEventService.class));
         List<AvailableCredentialDTO> credentials = service.getAvailableCredentialsForPrograms(
                 "youth-123",
                 List.of("program-123")
@@ -350,7 +350,7 @@ class CredentialServiceTest {
         when(earnedWriteFuture.get()).thenReturn(mock(WriteResult.class));
         when(userUpdateFuture.get()).thenReturn(mock(WriteResult.class));
 
-        CredentialService service = new CredentialService(firestore, notificationService);
+        CredentialService service = new CredentialService(firestore, notificationService, mock(PlatformEventService.class));
         List<String> awardedCredentialIds = service.evaluateAttendanceAutoAwards(
                 "youth-123",
                 "program-123",

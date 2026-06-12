@@ -1,0 +1,14 @@
+package com.AspirationsNetwork.UserData.Models;
+
+public enum PlatformEventType {
+    ACCOUNT_CREATED,
+    PROFILE_COMPLETED,
+    LOGIN,
+    DASHBOARD_VIEW,
+    PROGRAM_ENROLLED,
+    CREDENTIAL_EARNED,
+    SERVICE_HOURS_VIEWED,
+    RWD_ACTIVITY_VIEWED,
+    RWD_ACTIVITY_COMPLETED,
+    NOTIFICATION_VIEWED
+}

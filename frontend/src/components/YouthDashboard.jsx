@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { fetchYouthDashboard } from "../api.js";
+import { fetchYouthDashboard, trackPlatformEvent } from "../api.js";
 import { useAuth } from "../auth/AuthContext.jsx";
 
 export function YouthDashboard({ navigate }) {
@@ -19,6 +19,7 @@ export function YouthDashboard({ navigate }) {
         const data = await fetchYouthDashboard(user);
         if (isActive) {
           setDashboard(data);
+          trackPlatformEvent(user, "DASHBOARD_VIEW").catch(() => {});
         }
       } catch (nextError) {
         if (isActive) {
