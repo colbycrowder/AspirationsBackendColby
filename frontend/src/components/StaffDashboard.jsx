@@ -87,6 +87,7 @@ export function StaffDashboard({ metrics: providedMetrics, navigate }) {
             ["/staff/credential-management", "Credentials"],
             ["/staff/attendance-management", "Attendance"],
             ["/staff/service-hour-management", "Service Hours"],
+            ["/staff/reporting", "Reporting"],
             ["/staff/operations-reporting", "Operations Reporting"],
           ].map(([path, label]) => (
             <button className="text-action" key={path} type="button" onClick={() => navigate(path)}>

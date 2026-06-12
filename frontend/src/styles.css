@@ -599,6 +599,12 @@ h3 {
   border-bottom: 1px solid #e8eef4;
 }
 
+.staff-mini-table small {
+  display: block;
+  margin-top: 2px;
+  color: #607386;
+}
+
 .credential-summary-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));

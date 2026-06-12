@@ -6,6 +6,7 @@ import { CredentialManagement } from "./components/CredentialManagement.jsx";
 import { CredentialsPage } from "./components/CredentialsPage.jsx";
 import { NotificationsPage } from "./components/NotificationsPage.jsx";
 import { OperationsReporting } from "./components/OperationsReporting.jsx";
+import { PilotReportingDashboard } from "./components/PilotReportingDashboard.jsx";
 import { ProfileCompletionPage } from "./components/ProfileCompletionPage.jsx";
 import { ProgramManagement } from "./components/ProgramManagement.jsx";
 import { ProgramsPage } from "./components/ProgramsPage.jsx";
@@ -43,6 +44,7 @@ const staffRoutes = [
   { path: "/staff/attendance-management", label: "Attendance Management", title: "Attendance Management", protected: true, staff: true },
   { path: "/staff/service-hour-management", label: "Service Hour Management", title: "Service Hour Management", protected: true, staff: true },
   { path: "/staff/operations-reporting", label: "Operations Reporting", title: "Operations Reporting", protected: true, staff: true },
+  { path: "/staff/reporting", label: "Reporting", title: "Reporting", protected: true, staff: true },
   { path: "/staff/metrics", label: "Metrics", title: "Metrics", protected: true, staff: true },
 ];
 
@@ -262,6 +264,8 @@ function RouteContent({ route, detail, navigate }) {
             <ServiceHoursManagement />
           ) : route.path === "/staff/operations-reporting" ? (
             <OperationsReporting />
+          ) : route.path === "/staff/reporting" ? (
+            <PilotReportingDashboard />
           ) : (
             <PlaceholderPage route={route} detail={detail} />
           )
