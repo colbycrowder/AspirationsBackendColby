@@ -19,6 +19,8 @@ import com.AspirationsNetwork.UserData.DTO.RwdActivityDTO;
 import com.AspirationsNetwork.UserData.DTO.RwdProgressDTO;
 import com.AspirationsNetwork.UserData.DTO.ServiceHourRecordDTO;
 import com.AspirationsNetwork.UserData.DTO.ServiceHourRequestUrlDTO;
+import com.AspirationsNetwork.UserData.DTO.ServiceHourStatusUpdateDTO;
+import com.AspirationsNetwork.UserData.DTO.ServiceHourTotalsDTO;
 import com.AspirationsNetwork.UserData.DTO.StaffOperationReportingDTO;
 import com.AspirationsNetwork.UserData.DTO.StaffUserUpdateDTO;
 import com.AspirationsNetwork.UserData.DTO.UserProfileCreationDTO;
@@ -1259,5 +1261,131 @@ class UserInfoControllerTest {
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals(1, response.getBody().size());
         assertEquals("service-hours-123", response.getBody().get(0).getServiceHourRecordId());
+    }
+
+    @Test
+    void getServiceHourRecordsForStaffReturnsFilteredRecords() throws Exception {
+        ServiceHourRecord record = new ServiceHourRecord();
+        record.setServiceHourRecordId("service-hours-123");
+        Date serviceDate = new Date();
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+        when(serviceHourService.getServiceHourRecords("youth-123", "verified", "program-123", serviceDate))
+                .thenReturn(List.of(record));
+
+        ResponseEntity<List<ServiceHourRecord>> response = controller.getServiceHourRecordsForStaff(
+                "Bearer staff-token",
+                "youth-123",
+                "verified",
+                "program-123",
+                serviceDate
+        );
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("service-hours-123", response.getBody().get(0).getServiceHourRecordId());
+    }
+
+    @Test
+    void getServiceHourTotalsForStaffReturnsTotals() throws Exception {
+        ServiceHourTotalsDTO totals = new ServiceHourTotalsDTO();
+        totals.setTotalRecords(2);
+        totals.setVerifiedHours(4.5);
+        Date serviceDate = new Date();
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+        when(serviceHourService.getServiceHourTotals("youth-123", "verified", "program-123", serviceDate))
+                .thenReturn(totals);
+
+        ResponseEntity<ServiceHourTotalsDTO> response = controller.getServiceHourTotalsForStaff(
+                "Bearer staff-token",
+                "youth-123",
+                "verified",
+                "program-123",
+                serviceDate
+        );
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(2, response.getBody().getTotalRecords());
+        assertEquals(4.5, response.getBody().getVerifiedHours());
+    }
+
+    @Test
+    void updateServiceHourRecordStatusUsesVerifiedStaffUid() throws Exception {
+        ServiceHourStatusUpdateDTO dto = new ServiceHourStatusUpdateDTO();
+        dto.setVerificationStatus("verified");
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+
+        ResponseEntity<String> response = controller.updateServiceHourRecordStatus(
+                "Bearer staff-token",
+                "service-hours-123",
+                dto
+        );
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("Updated", response.getBody());
+        verify(serviceHourService).updateServiceHourRecordStatus(
+                "service-hours-123",
+                "verified",
+                "verified-staff-123"
+        );
+        verify(staffOperationEventService).trackOperationSafely(
+                eq("verified-staff-123"),
+                eq(StaffOperationEventService.SERVICE_HOUR_REVIEWED),
+                eq("serviceHourRecord"),
+                eq("service-hours-123"),
+                isNull(),
+                argThat(metadata -> "verified".equals(metadata.get("verificationStatus")))
+        );
+    }
+
+    @Test
+    void approveAndRejectServiceHourRecordRequireStaffToken() throws Exception {
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+
+        ResponseEntity<String> approveResponse = controller.approveServiceHourRecord(
+                "Bearer staff-token",
+                "service-hours-123"
+        );
+        ResponseEntity<String> rejectResponse = controller.rejectServiceHourRecord(
+                "Bearer staff-token",
+                "service-hours-123"
+        );
+
+        assertEquals(HttpStatus.OK, approveResponse.getStatusCode());
+        assertEquals("Approved", approveResponse.getBody());
+        assertEquals(HttpStatus.OK, rejectResponse.getStatusCode());
+        assertEquals("Rejected", rejectResponse.getBody());
+        verify(serviceHourService).approveServiceHourRecord("service-hours-123", "verified-staff-123");
+        verify(serviceHourService).rejectServiceHourRecord("service-hours-123", "verified-staff-123");
+    }
+
+    @Test
+    void deleteServiceHourRecordRequiresStaffToken() throws Exception {
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+
+        ResponseEntity<String> response = controller.deleteServiceHourRecord(
+                "Bearer staff-token",
+                "service-hours-123"
+        );
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("Deleted", response.getBody());
+        verify(serviceHourService).deleteServiceHourRecord("service-hours-123");
+    }
+
+    @Test
+    void getServiceHourRecordsForStaffRejectsYouthToken() throws Exception {
+        doThrow(new ForbiddenAccessException("Staff role is required"))
+                .when(authService)
+                .requireStaff("Bearer youth-token");
+
+        ResponseEntity<List<ServiceHourRecord>> response = controller.getServiceHourRecordsForStaff(
+                "Bearer youth-token",
+                null,
+                null,
+                null,
+                null
+        );
+
+        assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
+        assertNull(response.getBody());
     }
 }

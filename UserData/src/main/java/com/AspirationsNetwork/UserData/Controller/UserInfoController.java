@@ -18,6 +18,8 @@ import com.AspirationsNetwork.UserData.DTO.RwdActivityDTO;
 import com.AspirationsNetwork.UserData.DTO.RwdProgressDTO;
 import com.AspirationsNetwork.UserData.DTO.ServiceHourRecordDTO;
 import com.AspirationsNetwork.UserData.DTO.ServiceHourRequestUrlDTO;
+import com.AspirationsNetwork.UserData.DTO.ServiceHourStatusUpdateDTO;
+import com.AspirationsNetwork.UserData.DTO.ServiceHourTotalsDTO;
 import com.AspirationsNetwork.UserData.DTO.StaffOperationReportingDTO;
 import com.AspirationsNetwork.UserData.DTO.StaffUserUpdateDTO;
 import com.AspirationsNetwork.UserData.DTO.SystemSettingDTO;
@@ -1245,6 +1247,174 @@ public class UserInfoController {
             return ResponseEntity.badRequest().body(e.getMessage());
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body("Error creating service-hour record");
+        }
+    }
+
+    @GetMapping("/staff/service-hours")
+    public ResponseEntity<List<ServiceHourRecord>> getServiceHourRecordsForStaff(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestParam(value = "userUID", required = false) String userUID,
+            @RequestParam(value = "status", required = false) String status,
+            @RequestParam(value = "programId", required = false) String programId,
+            @RequestParam(value = "serviceDate", required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) Date serviceDate
+    ) {
+        try {
+            authService.requireStaff(authorizationHeader);
+            return ResponseEntity.ok(serviceHourService.getServiceHourRecords(
+                    userUID,
+                    status,
+                    programId,
+                    serviceDate
+            ));
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @GetMapping("/staff/service-hours/totals")
+    public ResponseEntity<ServiceHourTotalsDTO> getServiceHourTotalsForStaff(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestParam(value = "userUID", required = false) String userUID,
+            @RequestParam(value = "status", required = false) String status,
+            @RequestParam(value = "programId", required = false) String programId,
+            @RequestParam(value = "serviceDate", required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) Date serviceDate
+    ) {
+        try {
+            authService.requireStaff(authorizationHeader);
+            return ResponseEntity.ok(serviceHourService.getServiceHourTotals(
+                    userUID,
+                    status,
+                    programId,
+                    serviceDate
+            ));
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @PatchMapping("/staff/service-hours/{serviceHourRecordId}/status")
+    public ResponseEntity<String> updateServiceHourRecordStatus(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @PathVariable String serviceHourRecordId,
+            @RequestBody ServiceHourStatusUpdateDTO dto
+    ) {
+        try {
+            String staffUID = authService.requireStaff(authorizationHeader);
+            if (dto == null) {
+                return ResponseEntity.badRequest().body("service-hour status update request is required");
+            }
+            serviceHourService.updateServiceHourRecordStatus(
+                    serviceHourRecordId,
+                    dto.getVerificationStatus(),
+                    staffUID
+            );
+            staffOperationEventService.trackOperationSafely(
+                    staffUID,
+                    StaffOperationEventService.SERVICE_HOUR_REVIEWED,
+                    "serviceHourRecord",
+                    serviceHourRecordId,
+                    null,
+                    metadata("verificationStatus", dto.getVerificationStatus())
+            );
+            return ResponseEntity.ok("Updated");
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Error updating service-hour status");
+        }
+    }
+
+    @PatchMapping("/staff/service-hours/{serviceHourRecordId}/approve")
+    public ResponseEntity<String> approveServiceHourRecord(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @PathVariable String serviceHourRecordId
+    ) {
+        try {
+            String staffUID = authService.requireStaff(authorizationHeader);
+            serviceHourService.approveServiceHourRecord(serviceHourRecordId, staffUID);
+            staffOperationEventService.trackOperationSafely(
+                    staffUID,
+                    StaffOperationEventService.SERVICE_HOUR_REVIEWED,
+                    "serviceHourRecord",
+                    serviceHourRecordId,
+                    null,
+                    metadata("verificationStatus", "verified")
+            );
+            return ResponseEntity.ok("Approved");
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Error approving service-hour record");
+        }
+    }
+
+    @PatchMapping("/staff/service-hours/{serviceHourRecordId}/reject")
+    public ResponseEntity<String> rejectServiceHourRecord(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @PathVariable String serviceHourRecordId
+    ) {
+        try {
+            String staffUID = authService.requireStaff(authorizationHeader);
+            serviceHourService.rejectServiceHourRecord(serviceHourRecordId, staffUID);
+            staffOperationEventService.trackOperationSafely(
+                    staffUID,
+                    StaffOperationEventService.SERVICE_HOUR_REVIEWED,
+                    "serviceHourRecord",
+                    serviceHourRecordId,
+                    null,
+                    metadata("verificationStatus", "rejected")
+            );
+            return ResponseEntity.ok("Rejected");
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Error rejecting service-hour record");
+        }
+    }
+
+    @DeleteMapping("/staff/service-hours/{serviceHourRecordId}")
+    public ResponseEntity<String> deleteServiceHourRecord(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @PathVariable String serviceHourRecordId
+    ) {
+        try {
+            authService.requireStaff(authorizationHeader);
+            serviceHourService.deleteServiceHourRecord(serviceHourRecordId);
+            return ResponseEntity.ok("Deleted");
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Error deleting service-hour record");
         }
     }
 
