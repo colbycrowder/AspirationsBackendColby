@@ -3,6 +3,8 @@ package com.AspirationsNetwork.UserData.Controller;
 import com.AspirationsNetwork.UserData.DTO.AttendanceRecordCreationDTO;
 import com.AspirationsNetwork.UserData.DTO.AwardCredentialDTO;
 import com.AspirationsNetwork.UserData.DTO.CredentialDefinitionCreationDTO;
+import com.AspirationsNetwork.UserData.DTO.ExternalDatasetDTO;
+import com.AspirationsNetwork.UserData.DTO.ParticipantExternalLinkDTO;
 import com.AspirationsNetwork.UserData.DTO.PlatformEventRequestDTO;
 import com.AspirationsNetwork.UserData.DTO.PlatformMetricsDTO;
 import com.AspirationsNetwork.UserData.DTO.PilotReportingDTO;
@@ -22,7 +24,9 @@ import com.AspirationsNetwork.UserData.DTO.YouthSelfServiceProfileDTO;
 import com.AspirationsNetwork.UserData.Models.AttendanceRecord;
 import com.AspirationsNetwork.UserData.Models.Comment;
 import com.AspirationsNetwork.UserData.Models.DiscussionPost;
+import com.AspirationsNetwork.UserData.Models.ExternalDataset;
 import com.AspirationsNetwork.UserData.Models.Notification;
+import com.AspirationsNetwork.UserData.Models.ParticipantExternalLink;
 import com.AspirationsNetwork.UserData.Models.PlatformEventType;
 import com.AspirationsNetwork.UserData.Models.Program;
 import com.AspirationsNetwork.UserData.Models.ProgramEnrollment;
@@ -35,6 +39,7 @@ import com.AspirationsNetwork.UserData.Service.AuthService;
 import com.AspirationsNetwork.UserData.Service.CredentialService;
 import com.AspirationsNetwork.UserData.Service.DashboardService;
 import com.AspirationsNetwork.UserData.Service.DiscussionPostService;
+import com.AspirationsNetwork.UserData.Service.ExternalDatasetLinkService;
 import com.AspirationsNetwork.UserData.Service.ForbiddenAccessException;
 import com.AspirationsNetwork.UserData.Service.MetricsService;
 import com.AspirationsNetwork.UserData.Service.NotificationService;
@@ -76,6 +81,7 @@ public class UserInfoController {
     private final MetricsService metricsService;
     private final PlatformEventService platformEventService;
     private final PilotReportingService pilotReportingService;
+    private final ExternalDatasetLinkService externalDatasetLinkService;
 
     @GetMapping("/getUser/{id}")
     public ResponseEntity<User> getUser(@PathVariable String id) {
@@ -260,6 +266,147 @@ public class UserInfoController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         } catch (Exception e) {
             return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @PostMapping("/staff/external-datasets")
+    public ResponseEntity<String> createExternalDataset(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestBody ExternalDatasetDTO dto
+    ) {
+        try {
+            String staffUID = authService.requireStaff(authorizationHeader);
+            if (dto == null) {
+                return ResponseEntity.badRequest().body("external dataset request is required");
+            }
+            dto.setCreatedByStaffUID(staffUID);
+            return ResponseEntity.ok(externalDatasetLinkService.createExternalDataset(dto));
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Error creating external dataset");
+        }
+    }
+
+    @GetMapping("/staff/external-datasets")
+    public ResponseEntity<List<ExternalDataset>> getExternalDatasets(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader
+    ) {
+        try {
+            authService.requireStaff(authorizationHeader);
+            return ResponseEntity.ok(externalDatasetLinkService.getExternalDatasets());
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @PatchMapping("/staff/external-datasets/{externalDatasetId}")
+    public ResponseEntity<String> updateExternalDataset(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @PathVariable String externalDatasetId,
+            @RequestBody ExternalDatasetDTO dto
+    ) {
+        try {
+            authService.requireStaff(authorizationHeader);
+            externalDatasetLinkService.updateExternalDataset(externalDatasetId, dto);
+            return ResponseEntity.ok("Updated");
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Error updating external dataset");
+        }
+    }
+
+    @PostMapping("/staff/participant-external-links")
+    public ResponseEntity<String> createParticipantExternalLink(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestBody ParticipantExternalLinkDTO dto
+    ) {
+        try {
+            String staffUID = authService.requireStaff(authorizationHeader);
+            if (dto == null) {
+                return ResponseEntity.badRequest().body("participant external link request is required");
+            }
+            dto.setLinkedByStaffUID(staffUID);
+            return ResponseEntity.ok(externalDatasetLinkService.createParticipantExternalLink(dto));
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Error creating participant external link");
+        }
+    }
+
+    @GetMapping("/staff/participant-external-links/participant/{aspnParticipantId}")
+    public ResponseEntity<List<ParticipantExternalLink>> getParticipantExternalLinksByParticipant(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @PathVariable String aspnParticipantId
+    ) {
+        try {
+            authService.requireStaff(authorizationHeader);
+            return ResponseEntity.ok(externalDatasetLinkService.getLinksByParticipant(aspnParticipantId));
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @GetMapping("/staff/participant-external-links/dataset/{externalDatasetId}")
+    public ResponseEntity<List<ParticipantExternalLink>> getParticipantExternalLinksByDataset(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @PathVariable String externalDatasetId
+    ) {
+        try {
+            authService.requireStaff(authorizationHeader);
+            return ResponseEntity.ok(externalDatasetLinkService.getLinksByDataset(externalDatasetId));
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @PatchMapping("/staff/participant-external-links/{linkId}/remove")
+    public ResponseEntity<String> removeParticipantExternalLink(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @PathVariable String linkId
+    ) {
+        try {
+            String staffUID = authService.requireStaff(authorizationHeader);
+            externalDatasetLinkService.removeParticipantExternalLink(linkId, staffUID);
+            return ResponseEntity.ok("Removed");
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Error removing participant external link");
         }
     }
 

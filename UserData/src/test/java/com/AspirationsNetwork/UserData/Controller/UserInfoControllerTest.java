@@ -4,6 +4,8 @@ import com.AspirationsNetwork.UserData.DTO.AttendanceRecordCreationDTO;
 import com.AspirationsNetwork.UserData.DTO.AwardCredentialDTO;
 import com.AspirationsNetwork.UserData.DTO.CredentialDefinitionCreationDTO;
 import com.AspirationsNetwork.UserData.DTO.EarnedCredentialDisplayDTO;
+import com.AspirationsNetwork.UserData.DTO.ExternalDatasetDTO;
+import com.AspirationsNetwork.UserData.DTO.ParticipantExternalLinkDTO;
 import com.AspirationsNetwork.UserData.DTO.PlatformMetricsDTO;
 import com.AspirationsNetwork.UserData.DTO.PlatformEventRequestDTO;
 import com.AspirationsNetwork.UserData.DTO.PilotReportingDTO;
@@ -22,7 +24,9 @@ import com.AspirationsNetwork.UserData.Models.PlatformEventType;
 import com.AspirationsNetwork.UserData.Models.AttendanceRecord;
 import com.AspirationsNetwork.UserData.Models.Comment;
 import com.AspirationsNetwork.UserData.Models.DiscussionPost;
+import com.AspirationsNetwork.UserData.Models.ExternalDataset;
 import com.AspirationsNetwork.UserData.Models.Notification;
+import com.AspirationsNetwork.UserData.Models.ParticipantExternalLink;
 import com.AspirationsNetwork.UserData.Models.Program;
 import com.AspirationsNetwork.UserData.Models.ProgramEnrollment;
 import com.AspirationsNetwork.UserData.Models.RwdActivity;
@@ -34,6 +38,7 @@ import com.AspirationsNetwork.UserData.Service.AuthService;
 import com.AspirationsNetwork.UserData.Service.CredentialService;
 import com.AspirationsNetwork.UserData.Service.DashboardService;
 import com.AspirationsNetwork.UserData.Service.DiscussionPostService;
+import com.AspirationsNetwork.UserData.Service.ExternalDatasetLinkService;
 import com.AspirationsNetwork.UserData.Service.ForbiddenAccessException;
 import com.AspirationsNetwork.UserData.Service.MetricsService;
 import com.AspirationsNetwork.UserData.Service.NotificationService;
@@ -79,6 +84,7 @@ class UserInfoControllerTest {
     private final MetricsService metricsService = mock(MetricsService.class);
     private final PlatformEventService platformEventService = mock(PlatformEventService.class);
     private final PilotReportingService pilotReportingService = mock(PilotReportingService.class);
+    private final ExternalDatasetLinkService externalDatasetLinkService = mock(ExternalDatasetLinkService.class);
     private final UserInfoController controller = new UserInfoController(
             userInfoService,
             discussionPostService,
@@ -94,7 +100,8 @@ class UserInfoControllerTest {
             notificationService,
             metricsService,
             platformEventService,
-            pilotReportingService
+            pilotReportingService,
+            externalDatasetLinkService
     );
 
     @Test
@@ -213,6 +220,98 @@ class UserInfoControllerTest {
         assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
         assertNull(response.getBody());
         verifyNoInteractions(pilotReportingService);
+    }
+
+    @Test
+    void createExternalDatasetUsesVerifiedStaffUid() throws Exception {
+        ExternalDatasetDTO dto = new ExternalDatasetDTO();
+        dto.setExternalDatasetId("fall-survey-2026");
+        dto.setDatasetName("Fall Survey 2026");
+        dto.setExternalSource("google_forms");
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("staff-123");
+        when(externalDatasetLinkService.createExternalDataset(dto)).thenReturn("fall-survey-2026");
+
+        ResponseEntity<String> response = controller.createExternalDataset("Bearer staff-token", dto);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("fall-survey-2026", response.getBody());
+        verify(externalDatasetLinkService).createExternalDataset(argThat(request ->
+                "staff-123".equals(request.getCreatedByStaffUID())
+        ));
+    }
+
+    @Test
+    void createExternalDatasetRejectsYouthToken() throws Exception {
+        ExternalDatasetDTO dto = new ExternalDatasetDTO();
+        doThrow(new ForbiddenAccessException("Staff role is required"))
+                .when(authService)
+                .requireStaff("Bearer youth-token");
+
+        ResponseEntity<String> response = controller.createExternalDataset("Bearer youth-token", dto);
+
+        assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
+        assertEquals("Staff role is required", response.getBody());
+        verifyNoInteractions(externalDatasetLinkService);
+    }
+
+    @Test
+    void getExternalDatasetsReturnsStaffDatasetList() throws Exception {
+        ExternalDataset dataset = new ExternalDataset();
+        dataset.setExternalDatasetId("fall-survey-2026");
+        dataset.setDatasetName("Fall Survey 2026");
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("staff-123");
+        when(externalDatasetLinkService.getExternalDatasets()).thenReturn(List.of(dataset));
+
+        ResponseEntity<List<ExternalDataset>> response = controller.getExternalDatasets("Bearer staff-token");
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("fall-survey-2026", response.getBody().get(0).getExternalDatasetId());
+    }
+
+    @Test
+    void createParticipantExternalLinkUsesVerifiedStaffUid() throws Exception {
+        ParticipantExternalLinkDTO dto = new ParticipantExternalLinkDTO();
+        dto.setAspnParticipantId("ASPN-2026-0001");
+        dto.setExternalDatasetId("fall-survey-2026");
+        dto.setExternalRecordId("response-123");
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("staff-123");
+        when(externalDatasetLinkService.createParticipantExternalLink(dto)).thenReturn("link-123");
+
+        ResponseEntity<String> response = controller.createParticipantExternalLink("Bearer staff-token", dto);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("link-123", response.getBody());
+        verify(externalDatasetLinkService).createParticipantExternalLink(argThat(request ->
+                "staff-123".equals(request.getLinkedByStaffUID())
+        ));
+    }
+
+    @Test
+    void getParticipantExternalLinksByParticipantRequiresStaffRole() throws Exception {
+        ParticipantExternalLink link = new ParticipantExternalLink();
+        link.setLinkId("link-123");
+        link.setAspnParticipantId("ASPN-2026-0001");
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("staff-123");
+        when(externalDatasetLinkService.getLinksByParticipant("ASPN-2026-0001"))
+                .thenReturn(List.of(link));
+
+        ResponseEntity<List<ParticipantExternalLink>> response =
+                controller.getParticipantExternalLinksByParticipant("Bearer staff-token", "ASPN-2026-0001");
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("link-123", response.getBody().get(0).getLinkId());
+    }
+
+    @Test
+    void removeParticipantExternalLinkSoftRemovesForStaff() throws Exception {
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("staff-123");
+
+        ResponseEntity<String> response =
+                controller.removeParticipantExternalLink("Bearer staff-token", "link-123");
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("Removed", response.getBody());
+        verify(externalDatasetLinkService).removeParticipantExternalLink("link-123", "staff-123");
     }
 
     @Test
