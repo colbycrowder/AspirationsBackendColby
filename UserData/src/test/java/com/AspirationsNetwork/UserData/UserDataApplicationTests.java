@@ -9,6 +9,7 @@ import com.AspirationsNetwork.UserData.Service.DiscussionPostService;
 import com.AspirationsNetwork.UserData.Service.MetricsService;
 import com.AspirationsNetwork.UserData.Service.NotificationService;
 import com.AspirationsNetwork.UserData.Service.ParticipantIdService;
+import com.AspirationsNetwork.UserData.Service.PilotReportingService;
 import com.AspirationsNetwork.UserData.Service.PlatformEventService;
 import com.AspirationsNetwork.UserData.Service.ProgramEnrollmentService;
 import com.AspirationsNetwork.UserData.Service.ProgramService;
@@ -55,6 +56,7 @@ class UserDataApplicationTests {
 			MetricsService.class,
 			NotificationService.class,
 			ParticipantIdService.class,
+			PilotReportingService.class,
 			PlatformEventService.class,
 			ProgramEnrollmentService.class,
 			ProgramService.class,

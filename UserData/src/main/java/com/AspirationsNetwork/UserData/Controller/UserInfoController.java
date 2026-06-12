@@ -3,8 +3,9 @@ package com.AspirationsNetwork.UserData.Controller;
 import com.AspirationsNetwork.UserData.DTO.AttendanceRecordCreationDTO;
 import com.AspirationsNetwork.UserData.DTO.AwardCredentialDTO;
 import com.AspirationsNetwork.UserData.DTO.CredentialDefinitionCreationDTO;
-import com.AspirationsNetwork.UserData.DTO.PlatformMetricsDTO;
 import com.AspirationsNetwork.UserData.DTO.PlatformEventRequestDTO;
+import com.AspirationsNetwork.UserData.DTO.PlatformMetricsDTO;
+import com.AspirationsNetwork.UserData.DTO.PilotReportingDTO;
 import com.AspirationsNetwork.UserData.DTO.ProgramEnrollmentDTO;
 import com.AspirationsNetwork.UserData.DTO.ProgramDTO;
 import com.AspirationsNetwork.UserData.DTO.RwdActivityDTO;
@@ -37,6 +38,7 @@ import com.AspirationsNetwork.UserData.Service.DiscussionPostService;
 import com.AspirationsNetwork.UserData.Service.ForbiddenAccessException;
 import com.AspirationsNetwork.UserData.Service.MetricsService;
 import com.AspirationsNetwork.UserData.Service.NotificationService;
+import com.AspirationsNetwork.UserData.Service.PilotReportingService;
 import com.AspirationsNetwork.UserData.Service.PlatformEventService;
 import com.AspirationsNetwork.UserData.Service.ProgramEnrollmentService;
 import com.AspirationsNetwork.UserData.Service.ProgramService;
@@ -73,6 +75,7 @@ public class UserInfoController {
     private final NotificationService notificationService;
     private final MetricsService metricsService;
     private final PlatformEventService platformEventService;
+    private final PilotReportingService pilotReportingService;
 
     @GetMapping("/getUser/{id}")
     public ResponseEntity<User> getUser(@PathVariable String id) {
@@ -235,6 +238,22 @@ public class UserInfoController {
         try {
             authService.requireStaff(authorizationHeader);
             return ResponseEntity.ok(metricsService.getPlatformMetrics());
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @GetMapping("/staff/metrics/reporting")
+    public ResponseEntity<PilotReportingDTO> getStaffPilotReportingMetrics(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader
+    ) {
+        try {
+            authService.requireStaff(authorizationHeader);
+            return ResponseEntity.ok(pilotReportingService.getPilotReportingMetrics());
         } catch (UnauthorizedAccessException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         } catch (ForbiddenAccessException e) {

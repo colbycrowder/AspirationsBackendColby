@@ -6,6 +6,7 @@ import com.AspirationsNetwork.UserData.DTO.CredentialDefinitionCreationDTO;
 import com.AspirationsNetwork.UserData.DTO.EarnedCredentialDisplayDTO;
 import com.AspirationsNetwork.UserData.DTO.PlatformMetricsDTO;
 import com.AspirationsNetwork.UserData.DTO.PlatformEventRequestDTO;
+import com.AspirationsNetwork.UserData.DTO.PilotReportingDTO;
 import com.AspirationsNetwork.UserData.DTO.ProgramEnrollmentDTO;
 import com.AspirationsNetwork.UserData.DTO.ProgramDTO;
 import com.AspirationsNetwork.UserData.DTO.RwdActivityDTO;
@@ -36,6 +37,7 @@ import com.AspirationsNetwork.UserData.Service.DiscussionPostService;
 import com.AspirationsNetwork.UserData.Service.ForbiddenAccessException;
 import com.AspirationsNetwork.UserData.Service.MetricsService;
 import com.AspirationsNetwork.UserData.Service.NotificationService;
+import com.AspirationsNetwork.UserData.Service.PilotReportingService;
 import com.AspirationsNetwork.UserData.Service.PlatformEventService;
 import com.AspirationsNetwork.UserData.Service.ProgramEnrollmentService;
 import com.AspirationsNetwork.UserData.Service.ProgramService;
@@ -76,6 +78,7 @@ class UserInfoControllerTest {
     private final NotificationService notificationService = mock(NotificationService.class);
     private final MetricsService metricsService = mock(MetricsService.class);
     private final PlatformEventService platformEventService = mock(PlatformEventService.class);
+    private final PilotReportingService pilotReportingService = mock(PilotReportingService.class);
     private final UserInfoController controller = new UserInfoController(
             userInfoService,
             discussionPostService,
@@ -90,7 +93,8 @@ class UserInfoControllerTest {
             systemSettingsService,
             notificationService,
             metricsService,
-            platformEventService
+            platformEventService,
+            pilotReportingService
     );
 
     @Test
@@ -183,6 +187,32 @@ class UserInfoControllerTest {
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals(1, response.getBody().size());
         assertEquals("program-123", response.getBody().get(0).getProgramId());
+    }
+
+    @Test
+    void getStaffPilotReportingMetricsReturnsReportForStaffToken() throws Exception {
+        PilotReportingDTO reporting = new PilotReportingDTO();
+        reporting.getParticipation().setTotalRegisteredYouth(75);
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("staff-123");
+        when(pilotReportingService.getPilotReportingMetrics()).thenReturn(reporting);
+
+        ResponseEntity<PilotReportingDTO> response = controller.getStaffPilotReportingMetrics("Bearer staff-token");
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(75, response.getBody().getParticipation().getTotalRegisteredYouth());
+    }
+
+    @Test
+    void getStaffPilotReportingMetricsRejectsYouthToken() throws Exception {
+        doThrow(new ForbiddenAccessException("Staff role is required"))
+                .when(authService)
+                .requireStaff("Bearer youth-token");
+
+        ResponseEntity<PilotReportingDTO> response = controller.getStaffPilotReportingMetrics("Bearer youth-token");
+
+        assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
+        assertNull(response.getBody());
+        verifyNoInteractions(pilotReportingService);
     }
 
     @Test
