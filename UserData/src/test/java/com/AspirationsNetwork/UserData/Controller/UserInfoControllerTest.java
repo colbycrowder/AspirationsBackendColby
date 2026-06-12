@@ -11,6 +11,7 @@ import com.AspirationsNetwork.UserData.DTO.PlatformEventRequestDTO;
 import com.AspirationsNetwork.UserData.DTO.PilotReportingDTO;
 import com.AspirationsNetwork.UserData.DTO.ProgramEnrollmentDTO;
 import com.AspirationsNetwork.UserData.DTO.ProgramDTO;
+import com.AspirationsNetwork.UserData.DTO.ResearchExportDTO;
 import com.AspirationsNetwork.UserData.DTO.RwdActivityDTO;
 import com.AspirationsNetwork.UserData.DTO.RwdProgressDTO;
 import com.AspirationsNetwork.UserData.DTO.ServiceHourRecordDTO;
@@ -46,6 +47,7 @@ import com.AspirationsNetwork.UserData.Service.PilotReportingService;
 import com.AspirationsNetwork.UserData.Service.PlatformEventService;
 import com.AspirationsNetwork.UserData.Service.ProgramEnrollmentService;
 import com.AspirationsNetwork.UserData.Service.ProgramService;
+import com.AspirationsNetwork.UserData.Service.ResearchExportService;
 import com.AspirationsNetwork.UserData.Service.RwdLearningService;
 import com.AspirationsNetwork.UserData.Service.ServiceHourService;
 import com.AspirationsNetwork.UserData.Service.SystemSettingsService;
@@ -85,6 +87,7 @@ class UserInfoControllerTest {
     private final PlatformEventService platformEventService = mock(PlatformEventService.class);
     private final PilotReportingService pilotReportingService = mock(PilotReportingService.class);
     private final ExternalDatasetLinkService externalDatasetLinkService = mock(ExternalDatasetLinkService.class);
+    private final ResearchExportService researchExportService = mock(ResearchExportService.class);
     private final UserInfoController controller = new UserInfoController(
             userInfoService,
             discussionPostService,
@@ -101,7 +104,8 @@ class UserInfoControllerTest {
             metricsService,
             platformEventService,
             pilotReportingService,
-            externalDatasetLinkService
+            externalDatasetLinkService,
+            researchExportService
     );
 
     @Test
@@ -312,6 +316,37 @@ class UserInfoControllerTest {
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals("Removed", response.getBody());
         verify(externalDatasetLinkService).removeParticipantExternalLink("link-123", "staff-123");
+    }
+
+    @Test
+    void getStaffResearchExportReturnsExportForStaffToken() throws Exception {
+        ResearchExportDTO export = new ResearchExportDTO();
+        export.setExportType("participants_export");
+        export.setRecords(List.of(Map.of("aspnParticipantId", "ASPN-2026-0001")));
+        export.setRecordCount(1);
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("staff-123");
+        when(researchExportService.getResearchExport("participants_export")).thenReturn(export);
+
+        ResponseEntity<ResearchExportDTO> response =
+                controller.getStaffResearchExport("Bearer staff-token", "participants_export");
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("participants_export", response.getBody().getExportType());
+        assertEquals(1, response.getBody().getRecordCount());
+    }
+
+    @Test
+    void getStaffResearchExportRejectsYouthToken() throws Exception {
+        doThrow(new ForbiddenAccessException("Staff role is required"))
+                .when(authService)
+                .requireStaff("Bearer youth-token");
+
+        ResponseEntity<ResearchExportDTO> response =
+                controller.getStaffResearchExport("Bearer youth-token", "participants_export");
+
+        assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
+        assertNull(response.getBody());
+        verifyNoInteractions(researchExportService);
     }
 
     @Test

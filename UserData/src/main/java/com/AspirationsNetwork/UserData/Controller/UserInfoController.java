@@ -10,6 +10,7 @@ import com.AspirationsNetwork.UserData.DTO.PlatformMetricsDTO;
 import com.AspirationsNetwork.UserData.DTO.PilotReportingDTO;
 import com.AspirationsNetwork.UserData.DTO.ProgramEnrollmentDTO;
 import com.AspirationsNetwork.UserData.DTO.ProgramDTO;
+import com.AspirationsNetwork.UserData.DTO.ResearchExportDTO;
 import com.AspirationsNetwork.UserData.DTO.RwdActivityDTO;
 import com.AspirationsNetwork.UserData.DTO.RwdProgressDTO;
 import com.AspirationsNetwork.UserData.DTO.ServiceHourRecordDTO;
@@ -47,6 +48,7 @@ import com.AspirationsNetwork.UserData.Service.PilotReportingService;
 import com.AspirationsNetwork.UserData.Service.PlatformEventService;
 import com.AspirationsNetwork.UserData.Service.ProgramEnrollmentService;
 import com.AspirationsNetwork.UserData.Service.ProgramService;
+import com.AspirationsNetwork.UserData.Service.ResearchExportService;
 import com.AspirationsNetwork.UserData.Service.RwdLearningService;
 import com.AspirationsNetwork.UserData.Service.ServiceHourService;
 import com.AspirationsNetwork.UserData.Service.SystemSettingsService;
@@ -82,6 +84,7 @@ public class UserInfoController {
     private final PlatformEventService platformEventService;
     private final PilotReportingService pilotReportingService;
     private final ExternalDatasetLinkService externalDatasetLinkService;
+    private final ResearchExportService researchExportService;
 
     @GetMapping("/getUser/{id}")
     public ResponseEntity<User> getUser(@PathVariable String id) {
@@ -407,6 +410,25 @@ public class UserInfoController {
             return ResponseEntity.badRequest().body(e.getMessage());
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body("Error removing participant external link");
+        }
+    }
+
+    @GetMapping("/staff/research-exports/{exportType}")
+    public ResponseEntity<ResearchExportDTO> getStaffResearchExport(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @PathVariable String exportType
+    ) {
+        try {
+            authService.requireStaff(authorizationHeader);
+            return ResponseEntity.ok(researchExportService.getResearchExport(exportType));
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
         }
     }
 

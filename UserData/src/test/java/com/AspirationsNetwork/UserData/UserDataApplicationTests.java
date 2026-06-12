@@ -14,6 +14,7 @@ import com.AspirationsNetwork.UserData.Service.PilotReportingService;
 import com.AspirationsNetwork.UserData.Service.PlatformEventService;
 import com.AspirationsNetwork.UserData.Service.ProgramEnrollmentService;
 import com.AspirationsNetwork.UserData.Service.ProgramService;
+import com.AspirationsNetwork.UserData.Service.ResearchExportService;
 import com.AspirationsNetwork.UserData.Service.RwdLearningService;
 import com.AspirationsNetwork.UserData.Service.ServiceHourService;
 import com.AspirationsNetwork.UserData.Service.SystemSettingsService;
@@ -62,6 +63,7 @@ class UserDataApplicationTests {
 			PlatformEventService.class,
 			ProgramEnrollmentService.class,
 			ProgramService.class,
+			ResearchExportService.class,
 			RwdLearningService.class,
 			ServiceHourService.class,
 			SystemSettingsService.class,
