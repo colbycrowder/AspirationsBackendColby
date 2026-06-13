@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   archiveStaffProgram,
   createStaffProgram,
+  fetchStaffPilotReporting,
   fetchStaffProgramDetail,
   fetchStaffPrograms,
   fetchStaffProgramTotals,
@@ -11,7 +12,7 @@ import {
 import { useAuth } from "../auth/AuthContext.jsx";
 import { getRecordId, getStaffPageError, StaffMessage, StaffState, SummaryGrid } from "./staffUi.jsx";
 
-const emptyFilters = { active: "", programType: "" };
+const emptyFilters = { search: "", active: "", category: "" };
 const emptyProgram = {
   programName: "",
   description: "",
@@ -26,6 +27,7 @@ export function ProgramManagement() {
   const [filters, setFilters] = useState(emptyFilters);
   const [programs, setPrograms] = useState([]);
   const [totals, setTotals] = useState({});
+  const [pilotReport, setPilotReport] = useState({});
   const [detail, setDetail] = useState(null);
   const [form, setForm] = useState(emptyProgram);
   const [selectedId, setSelectedId] = useState("");
@@ -33,6 +35,10 @@ export function ProgramManagement() {
   const [busy, setBusy] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+
+  const programReports = Array.isArray(pilotReport?.programs) ? pilotReport.programs : [];
+  const visiblePrograms = filterPrograms(programs, filters);
+  const selectedProgramReport = programReports.find((program) => program.programId === selectedId);
 
   useEffect(() => {
     loadPrograms();
@@ -44,16 +50,24 @@ export function ProgramManagement() {
     setError("");
 
     try {
+      const apiFilters = buildProgramFilters(nextFilters);
       const [programData, totalData] = await Promise.all([
-        fetchStaffPrograms(user, cleanFilters(nextFilters)),
+        fetchStaffPrograms(user, apiFilters),
         fetchStaffProgramTotals(user),
       ]);
       setPrograms(programData);
       setTotals(totalData);
+
+      try {
+        setPilotReport(await fetchStaffPilotReporting(user));
+      } catch {
+        setPilotReport({});
+      }
     } catch (nextError) {
       setError(getStaffPageError(nextError));
       setPrograms([]);
       setTotals({});
+      setPilotReport({});
     } finally {
       setLoading(false);
     }
@@ -102,6 +116,9 @@ export function ProgramManagement() {
         setForm(emptyProgram);
       }
       await loadPrograms();
+      if (selectedId) {
+        setDetail(await fetchStaffProgramDetail(user, selectedId));
+      }
     } catch (nextError) {
       setError(getStaffPageError(nextError));
     } finally {
@@ -157,21 +174,28 @@ export function ProgramManagement() {
           { label: "Archived Programs", value: totals.archivedPrograms ?? 0 },
           { label: "Enrollments", value: totals.totalEnrollments ?? 0 },
           { label: "Credentials Earned", value: totals.totalCredentialsEarned ?? 0 },
+          { label: "Program Participation", value: formatPercent(pilotReport?.participation?.programParticipationPercentage) },
           { label: "Attendance Records", value: totals.totalAttendanceRecords ?? 0 },
           { label: "Service Hours", value: totals.totalServiceHours ?? 0 },
         ]}
       />
 
       <section className="staff-management-grid">
+        <GroupedCountPanel title="Programs By Status" values={totals.programsByStatus} />
+        <ProgramComparisonPanel programs={programReports} />
+      </section>
+
+      <section className="staff-management-grid">
         <div className="dashboard-section">
           <h3>Filters</h3>
           <form className="compact-form" onSubmit={handleFilterSubmit}>
+            <input placeholder="Search program name" value={filters.search} onChange={(event) => setFilters({ ...filters, search: event.target.value })} />
             <select value={filters.active} onChange={(event) => setFilters({ ...filters, active: event.target.value })}>
               <option value="">All statuses</option>
               <option value="true">Active</option>
               <option value="false">Archived</option>
             </select>
-            <input placeholder="Program type/category" value={filters.programType} onChange={(event) => setFilters({ ...filters, programType: event.target.value })} />
+            <input placeholder="Category" value={filters.category} onChange={(event) => setFilters({ ...filters, category: event.target.value })} />
             <button className="primary-action" type="submit">Apply Filters</button>
           </form>
 
@@ -186,19 +210,24 @@ export function ProgramManagement() {
           <div className="section-header">
             <div>
               <h3>Programs</h3>
-              <p>{programs.length} program{programs.length === 1 ? "" : "s"} loaded.</p>
+              <p>{visiblePrograms.length} of {programs.length} program{programs.length === 1 ? "" : "s"} shown.</p>
             </div>
           </div>
           <div className="staff-record-list">
-            {programs.length === 0 ? <p>No programs match the current filters.</p> : null}
-            {programs.map((program) => {
+            {visiblePrograms.length === 0 ? <p>No programs match the current filters.</p> : null}
+            {visiblePrograms.map((program) => {
               const programId = getProgramId(program);
+              const report = programReports.find((programReport) => programReport.programId === programId);
               return (
                 <article className={selectedId === programId ? "staff-record-card selected" : "staff-record-card"} key={programId}>
                   <button className="unstyled-button" type="button" onClick={() => handleSelect(program)}>
                     <strong>{program.programName || "Untitled program"}</strong>
                     <span>{program.category || "Uncategorized"} · {program.programStatus || "active"}</span>
                     <span>{programId}</span>
+                    <span>
+                      {report?.activeParticipants ?? 0} active · {report?.registrations ?? 0} enrollments ·{" "}
+                      {report?.credentialCompletions ?? 0} credentials
+                    </span>
                   </button>
                 </article>
               );
@@ -211,7 +240,8 @@ export function ProgramManagement() {
               <SummaryGrid
                 items={[
                   { label: "Enrollments", value: detail.enrollmentCount ?? 0 },
-                  { label: "Credentials", value: detail.credentialCount ?? 0 },
+                  { label: "Credentials", value: detail.credentialCount ?? selectedProgramReport?.credentialCompletions ?? 0 },
+                  { label: "Active Participants", value: selectedProgramReport?.activeParticipants ?? 0 },
                   { label: "Attendance", value: detail.attendanceCount ?? 0 },
                   { label: "Service Records", value: detail.serviceHourRecordCount ?? 0 },
                   { label: "Service Hours", value: detail.serviceHourTotal ?? 0 },
@@ -261,10 +291,84 @@ function buildProgramPayload(form) {
   };
 }
 
-function cleanFilters(filters) {
-  return Object.fromEntries(Object.entries(filters).filter(([, value]) => value !== ""));
+function buildProgramFilters(filters) {
+  const apiFilters = {};
+
+  if (filters.active !== "") {
+    apiFilters.active = filters.active;
+  }
+
+  if (filters.category) {
+    apiFilters.programType = filters.category;
+  }
+
+  return apiFilters;
 }
 
 function getProgramId(program) {
   return getRecordId(program, ["programId", "programID"]);
+}
+
+function filterPrograms(programs, filters) {
+  const search = filters.search.trim().toLowerCase();
+  const category = filters.category.trim().toLowerCase();
+
+  return programs.filter((program) => {
+    const nameMatches = !search || (program.programName || "").toLowerCase().includes(search);
+    const categoryMatches = !category || (program.category || "").toLowerCase().includes(category);
+    return nameMatches && categoryMatches;
+  });
+}
+
+function GroupedCountPanel({ title, values = {} }) {
+  const rows = Object.entries(values || {});
+
+  return (
+    <section className="dashboard-section">
+      <h3>{title}</h3>
+      {rows.length === 0 ? (
+        <p>No data available yet.</p>
+      ) : (
+        <div className="staff-mini-table">
+          {rows.map(([label, count]) => (
+            <div key={label}>
+              <span>{label || "Unknown"}</span>
+              <strong>{count ?? 0}</strong>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ProgramComparisonPanel({ programs }) {
+  return (
+    <section className="dashboard-section">
+      <h3>Program Participation Comparison</h3>
+      {programs.length === 0 ? (
+        <p>No program reporting data is available yet.</p>
+      ) : (
+        <div className="staff-mini-table">
+          {programs.map((program) => (
+            <div key={program.programId || program.programName}>
+              <span>
+                <strong>{program.programName || "Untitled program"}</strong>
+                <small>{program.category || "Uncategorized"} · {program.programStatus || "status missing"}</small>
+              </span>
+              <span>
+                {program.activeParticipants ?? 0} active · {program.registrations ?? 0} enrollments ·{" "}
+                {program.credentialCompletions ?? 0} credentials
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function formatPercent(value) {
+  const numericValue = Number(value ?? 0);
+  return `${Number.isFinite(numericValue) ? numericValue.toFixed(1) : "0.0"}%`;
 }
