@@ -30,6 +30,8 @@ import com.AspirationsNetwork.UserData.DTO.ServiceHourStatusUpdateDTO;
 import com.AspirationsNetwork.UserData.DTO.ServiceHourTotalsDTO;
 import com.AspirationsNetwork.UserData.DTO.StaffOperationReportingDTO;
 import com.AspirationsNetwork.UserData.DTO.StaffUserUpdateDTO;
+import com.AspirationsNetwork.UserData.DTO.StakeholderRelationshipNoteDTO;
+import com.AspirationsNetwork.UserData.DTO.StakeholderRelationshipNoteTotalsDTO;
 import com.AspirationsNetwork.UserData.DTO.SystemSettingDTO;
 import com.AspirationsNetwork.UserData.DTO.UserProfileCreationDTO;
 import com.AspirationsNetwork.UserData.DTO.UserProfileWithCredentialsDTO;
@@ -53,6 +55,7 @@ import com.AspirationsNetwork.UserData.Models.ProgramEnrollment;
 import com.AspirationsNetwork.UserData.Models.RwdActivity;
 import com.AspirationsNetwork.UserData.Models.RwdProgress;
 import com.AspirationsNetwork.UserData.Models.ServiceHourRecord;
+import com.AspirationsNetwork.UserData.Models.StakeholderRelationshipNote;
 import com.AspirationsNetwork.UserData.Models.User;
 import com.AspirationsNetwork.UserData.Service.AttendanceService;
 import com.AspirationsNetwork.UserData.Service.AuthService;
@@ -74,6 +77,7 @@ import com.AspirationsNetwork.UserData.Service.ResearchExportService;
 import com.AspirationsNetwork.UserData.Service.RwdLearningService;
 import com.AspirationsNetwork.UserData.Service.ServiceHourService;
 import com.AspirationsNetwork.UserData.Service.StaffOperationEventService;
+import com.AspirationsNetwork.UserData.Service.StakeholderRelationshipNoteService;
 import com.AspirationsNetwork.UserData.Service.SystemSettingsService;
 import com.AspirationsNetwork.UserData.Service.UnauthorizedAccessException;
 import com.AspirationsNetwork.UserData.Service.UserInfoService;
@@ -114,6 +118,7 @@ public class UserInfoController {
     private final EducatorService educatorService;
     private final PartnerOrganizationService partnerOrganizationService;
     private final GovernmentOrganizationService governmentOrganizationService;
+    private final StakeholderRelationshipNoteService stakeholderRelationshipNoteService;
 
     @GetMapping("/getUser/{id}")
     public ResponseEntity<User> getUser(@PathVariable String id) {
@@ -1493,6 +1498,140 @@ public class UserInfoController {
             return ResponseEntity.badRequest().body(e.getMessage());
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body("Error deactivating government organization");
+        }
+    }
+
+    @GetMapping("/staff/stakeholders/notes")
+    public ResponseEntity<List<StakeholderRelationshipNote>> getStakeholderRelationshipNotesForStaff(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestParam(value = "stakeholderType", required = false) String stakeholderType,
+            @RequestParam(value = "stakeholderId", required = false) String stakeholderId,
+            @RequestParam(value = "relationshipStatus", required = false) String relationshipStatus,
+            @RequestParam(value = "relationshipOwnerUID", required = false) String relationshipOwnerUID,
+            @RequestParam(value = "active", required = false) Boolean active,
+            @RequestParam(value = "nextFollowUpBefore", required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) Date nextFollowUpBefore,
+            @RequestParam(value = "nextFollowUpAfter", required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) Date nextFollowUpAfter
+    ) {
+        try {
+            authService.requireStaff(authorizationHeader);
+            return ResponseEntity.ok(stakeholderRelationshipNoteService.getNotes(
+                    stakeholderType,
+                    stakeholderId,
+                    relationshipStatus,
+                    relationshipOwnerUID,
+                    active,
+                    nextFollowUpBefore,
+                    nextFollowUpAfter
+            ));
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @GetMapping("/staff/stakeholders/notes/totals")
+    public ResponseEntity<StakeholderRelationshipNoteTotalsDTO> getStakeholderRelationshipNoteTotalsForStaff(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader
+    ) {
+        try {
+            authService.requireStaff(authorizationHeader);
+            return ResponseEntity.ok(stakeholderRelationshipNoteService.getTotals());
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @GetMapping("/staff/stakeholders/notes/{stakeholderRelationshipNoteId}")
+    public ResponseEntity<StakeholderRelationshipNote> getStakeholderRelationshipNoteForStaff(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @PathVariable String stakeholderRelationshipNoteId
+    ) {
+        try {
+            authService.requireStaff(authorizationHeader);
+            StakeholderRelationshipNote note = stakeholderRelationshipNoteService.getNote(stakeholderRelationshipNoteId);
+            if (note == null) {
+                return ResponseEntity.notFound().build();
+            }
+            return ResponseEntity.ok(note);
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @PostMapping("/staff/stakeholders/notes")
+    public ResponseEntity<String> createStakeholderRelationshipNoteForStaff(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestBody StakeholderRelationshipNoteDTO dto
+    ) {
+        try {
+            String staffUID = authService.requireStaff(authorizationHeader);
+            return ResponseEntity.ok(stakeholderRelationshipNoteService.createNote(dto, staffUID));
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Error creating stakeholder relationship note");
+        }
+    }
+
+    @PatchMapping("/staff/stakeholders/notes/{stakeholderRelationshipNoteId}")
+    public ResponseEntity<String> updateStakeholderRelationshipNoteForStaff(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @PathVariable String stakeholderRelationshipNoteId,
+            @RequestBody StakeholderRelationshipNoteDTO dto
+    ) {
+        try {
+            String staffUID = authService.requireStaff(authorizationHeader);
+            stakeholderRelationshipNoteService.updateNote(stakeholderRelationshipNoteId, dto, staffUID);
+            return ResponseEntity.ok("Updated");
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Error updating stakeholder relationship note");
+        }
+    }
+
+    @DeleteMapping("/staff/stakeholders/notes/{stakeholderRelationshipNoteId}")
+    public ResponseEntity<String> deleteStakeholderRelationshipNoteForStaff(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @PathVariable String stakeholderRelationshipNoteId
+    ) {
+        try {
+            authService.requireStaff(authorizationHeader);
+            stakeholderRelationshipNoteService.deleteNote(stakeholderRelationshipNoteId);
+            return ResponseEntity.ok("Deleted");
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Error deleting stakeholder relationship note");
         }
     }
 

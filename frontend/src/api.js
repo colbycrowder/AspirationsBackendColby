@@ -1155,6 +1155,100 @@ export async function deactivateStaffGovernmentOrganization(user, governmentOrga
   return response.text();
 }
 
+export async function fetchStaffStakeholderRelationshipNotes(user, filters = {}) {
+  const params = new URLSearchParams();
+  if (filters.stakeholderType) {
+    params.set("stakeholderType", filters.stakeholderType);
+  }
+  if (filters.stakeholderId) {
+    params.set("stakeholderId", filters.stakeholderId);
+  }
+  if (filters.relationshipStatus) {
+    params.set("relationshipStatus", filters.relationshipStatus);
+  }
+  if (filters.relationshipOwnerUID) {
+    params.set("relationshipOwnerUID", filters.relationshipOwnerUID);
+  }
+  if (filters.active !== undefined && filters.active !== "") {
+    params.set("active", String(filters.active));
+  }
+  if (filters.nextFollowUpBefore) {
+    params.set("nextFollowUpBefore", filters.nextFollowUpBefore);
+  }
+  if (filters.nextFollowUpAfter) {
+    params.set("nextFollowUpAfter", filters.nextFollowUpAfter);
+  }
+
+  const query = params.toString();
+  const response = await fetchStaffEndpoint(user, `/api/staff/stakeholders/notes${query ? `?${query}` : ""}`);
+  const notes = await response.json();
+  return Array.isArray(notes) ? notes : [];
+}
+
+export async function fetchStaffStakeholderRelationshipNote(user, stakeholderRelationshipNoteId) {
+  if (!stakeholderRelationshipNoteId) {
+    throw new Error("Relationship note selection is required.");
+  }
+
+  const response = await fetchStaffEndpoint(
+    user,
+    `/api/staff/stakeholders/notes/${encodeURIComponent(stakeholderRelationshipNoteId)}`
+  );
+  return response.json();
+}
+
+export async function fetchStaffStakeholderRelationshipNoteTotals(user) {
+  const response = await fetchStaffEndpoint(user, "/api/staff/stakeholders/notes/totals");
+  const totals = await response.json();
+  return totals && typeof totals === "object" ? totals : {};
+}
+
+export async function createStaffStakeholderRelationshipNote(user, note) {
+  const response = await fetchStaffEndpoint(user, "/api/staff/stakeholders/notes", {
+    body: JSON.stringify(note),
+    headers: {
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+  });
+
+  return response.text();
+}
+
+export async function updateStaffStakeholderRelationshipNote(user, stakeholderRelationshipNoteId, updates) {
+  if (!stakeholderRelationshipNoteId) {
+    throw new Error("Relationship note selection is required.");
+  }
+
+  const response = await fetchStaffEndpoint(
+    user,
+    `/api/staff/stakeholders/notes/${encodeURIComponent(stakeholderRelationshipNoteId)}`,
+    {
+      body: JSON.stringify(updates),
+      headers: {
+        "Content-Type": "application/json",
+      },
+      method: "PATCH",
+    }
+  );
+
+  return response.text();
+}
+
+export async function deleteStaffStakeholderRelationshipNote(user, stakeholderRelationshipNoteId) {
+  if (!stakeholderRelationshipNoteId) {
+    throw new Error("Relationship note selection is required.");
+  }
+
+  const response = await fetchStaffEndpoint(
+    user,
+    `/api/staff/stakeholders/notes/${encodeURIComponent(stakeholderRelationshipNoteId)}`,
+    { method: "DELETE" }
+  );
+
+  return response.text();
+}
+
 async function fetchStaffEndpoint(user, path, options = {}) {
   if (!user) {
     throw new ApiAccessError("Sign in before opening staff/admin tools.", 401);

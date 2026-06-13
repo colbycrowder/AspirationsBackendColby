@@ -31,6 +31,8 @@ import com.AspirationsNetwork.UserData.DTO.ServiceHourStatusUpdateDTO;
 import com.AspirationsNetwork.UserData.DTO.ServiceHourTotalsDTO;
 import com.AspirationsNetwork.UserData.DTO.StaffOperationReportingDTO;
 import com.AspirationsNetwork.UserData.DTO.StaffUserUpdateDTO;
+import com.AspirationsNetwork.UserData.DTO.StakeholderRelationshipNoteDTO;
+import com.AspirationsNetwork.UserData.DTO.StakeholderRelationshipNoteTotalsDTO;
 import com.AspirationsNetwork.UserData.DTO.UserProfileCreationDTO;
 import com.AspirationsNetwork.UserData.DTO.UserProfileWithCredentialsDTO;
 import com.AspirationsNetwork.UserData.DTO.UserTotalsDTO;
@@ -52,6 +54,7 @@ import com.AspirationsNetwork.UserData.Models.ProgramEnrollment;
 import com.AspirationsNetwork.UserData.Models.RwdActivity;
 import com.AspirationsNetwork.UserData.Models.RwdProgress;
 import com.AspirationsNetwork.UserData.Models.ServiceHourRecord;
+import com.AspirationsNetwork.UserData.Models.StakeholderRelationshipNote;
 import com.AspirationsNetwork.UserData.Models.User;
 import com.AspirationsNetwork.UserData.Service.AttendanceService;
 import com.AspirationsNetwork.UserData.Service.AuthService;
@@ -73,6 +76,7 @@ import com.AspirationsNetwork.UserData.Service.ResearchExportService;
 import com.AspirationsNetwork.UserData.Service.RwdLearningService;
 import com.AspirationsNetwork.UserData.Service.ServiceHourService;
 import com.AspirationsNetwork.UserData.Service.StaffOperationEventService;
+import com.AspirationsNetwork.UserData.Service.StakeholderRelationshipNoteService;
 import com.AspirationsNetwork.UserData.Service.SystemSettingsService;
 import com.AspirationsNetwork.UserData.Service.UnauthorizedAccessException;
 import com.AspirationsNetwork.UserData.Service.UserInfoService;
@@ -118,6 +122,7 @@ class UserInfoControllerTest {
     private final EducatorService educatorService = mock(EducatorService.class);
     private final PartnerOrganizationService partnerOrganizationService = mock(PartnerOrganizationService.class);
     private final GovernmentOrganizationService governmentOrganizationService = mock(GovernmentOrganizationService.class);
+    private final StakeholderRelationshipNoteService stakeholderRelationshipNoteService = mock(StakeholderRelationshipNoteService.class);
     private final UserInfoController controller = new UserInfoController(
             userInfoService,
             discussionPostService,
@@ -139,7 +144,8 @@ class UserInfoControllerTest {
             staffOperationEventService,
             educatorService,
             partnerOrganizationService,
-            governmentOrganizationService
+            governmentOrganizationService,
+            stakeholderRelationshipNoteService
     );
 
     @Test
@@ -1974,6 +1980,139 @@ class UserInfoControllerTest {
         assertNull(response.getBody());
     }
 
+    @Test
+    void createStakeholderRelationshipNoteUsesVerifiedStaffUid() throws Exception {
+        StakeholderRelationshipNoteDTO dto = stakeholderRelationshipNoteDto();
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+        when(stakeholderRelationshipNoteService.createNote(dto, "verified-staff-123")).thenReturn("note-123");
+
+        ResponseEntity<String> response = controller.createStakeholderRelationshipNoteForStaff("Bearer staff-token", dto);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("note-123", response.getBody());
+        verify(stakeholderRelationshipNoteService).createNote(dto, "verified-staff-123");
+    }
+
+    @Test
+    void getStakeholderRelationshipNotesForStaffPassesFiltersToService() throws Exception {
+        Date before = new Date();
+        Date after = new Date(before.getTime() - 24L * 60L * 60L * 1000L);
+        StakeholderRelationshipNote note = stakeholderRelationshipNote("note-123");
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+        when(stakeholderRelationshipNoteService.getNotes(
+                "educator",
+                "educator-123",
+                "contacted",
+                "owner-123",
+                true,
+                before,
+                after
+        )).thenReturn(List.of(note));
+
+        ResponseEntity<List<StakeholderRelationshipNote>> response = controller.getStakeholderRelationshipNotesForStaff(
+                "Bearer staff-token",
+                "educator",
+                "educator-123",
+                "contacted",
+                "owner-123",
+                true,
+                before,
+                after
+        );
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(1, response.getBody().size());
+        assertEquals("note-123", response.getBody().get(0).getStakeholderRelationshipNoteId());
+    }
+
+    @Test
+    void getStakeholderRelationshipNoteForStaffReturnsDetail() throws Exception {
+        StakeholderRelationshipNote note = stakeholderRelationshipNote("note-123");
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+        when(stakeholderRelationshipNoteService.getNote("note-123")).thenReturn(note);
+
+        ResponseEntity<StakeholderRelationshipNote> response = controller.getStakeholderRelationshipNoteForStaff("Bearer staff-token", "note-123");
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("note-123", response.getBody().getStakeholderRelationshipNoteId());
+    }
+
+    @Test
+    void getMissingStakeholderRelationshipNoteForStaffReturnsNotFound() throws Exception {
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+        when(stakeholderRelationshipNoteService.getNote("missing-note")).thenReturn(null);
+
+        ResponseEntity<StakeholderRelationshipNote> response = controller.getStakeholderRelationshipNoteForStaff("Bearer staff-token", "missing-note");
+
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+        assertNull(response.getBody());
+    }
+
+    @Test
+    void updateStakeholderRelationshipNoteUsesVerifiedStaffUid() throws Exception {
+        StakeholderRelationshipNoteDTO dto = stakeholderRelationshipNoteDto();
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+
+        ResponseEntity<String> response = controller.updateStakeholderRelationshipNoteForStaff("Bearer staff-token", "note-123", dto);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("Updated", response.getBody());
+        verify(stakeholderRelationshipNoteService).updateNote("note-123", dto, "verified-staff-123");
+    }
+
+    @Test
+    void deleteStakeholderRelationshipNoteForStaffRequiresStaffToken() throws Exception {
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+
+        ResponseEntity<String> response = controller.deleteStakeholderRelationshipNoteForStaff("Bearer staff-token", "note-123");
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("Deleted", response.getBody());
+        verify(stakeholderRelationshipNoteService).deleteNote("note-123");
+    }
+
+    @Test
+    void getStakeholderRelationshipNoteTotalsForStaffReturnsTotals() throws Exception {
+        StakeholderRelationshipNoteTotalsDTO totals = new StakeholderRelationshipNoteTotalsDTO();
+        totals.setTotalNotes(3);
+        totals.setActiveNotes(2);
+        totals.setInactiveNotes(1);
+        totals.setUpcomingFollowUps(1);
+        totals.setOverdueFollowUps(1);
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+        when(stakeholderRelationshipNoteService.getTotals()).thenReturn(totals);
+
+        ResponseEntity<StakeholderRelationshipNoteTotalsDTO> response = controller.getStakeholderRelationshipNoteTotalsForStaff("Bearer staff-token");
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(3, response.getBody().getTotalNotes());
+        assertEquals(2, response.getBody().getActiveNotes());
+        assertEquals(1, response.getBody().getInactiveNotes());
+        assertEquals(1, response.getBody().getUpcomingFollowUps());
+        assertEquals(1, response.getBody().getOverdueFollowUps());
+    }
+
+    @Test
+    void getStakeholderRelationshipNotesForStaffRejectsYouthToken() throws Exception {
+        doThrow(new ForbiddenAccessException("Staff role is required"))
+                .when(authService)
+                .requireStaff("Bearer youth-token");
+
+        ResponseEntity<List<StakeholderRelationshipNote>> response = controller.getStakeholderRelationshipNotesForStaff(
+                "Bearer youth-token",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+
+        assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
+        assertNull(response.getBody());
+    }
+
     private EducatorDTO educatorDto() {
         EducatorDTO dto = new EducatorDTO();
         dto.setFirstName("Jane");
@@ -2056,5 +2195,29 @@ class UserInfoControllerTest {
         organization.setWorkforcePartner(true);
         organization.setCredentialPartner(false);
         return organization;
+    }
+
+    private StakeholderRelationshipNoteDTO stakeholderRelationshipNoteDto() {
+        StakeholderRelationshipNoteDTO dto = new StakeholderRelationshipNoteDTO();
+        dto.setStakeholderType("educator");
+        dto.setStakeholderId("educator-123");
+        dto.setStakeholderName("Jane Smith");
+        dto.setNoteText("Initial relationship note");
+        dto.setRelationshipStatus("contacted");
+        dto.setActive(true);
+        return dto;
+    }
+
+    private StakeholderRelationshipNote stakeholderRelationshipNote(String noteId) {
+        StakeholderRelationshipNote note = new StakeholderRelationshipNote();
+        note.setStakeholderRelationshipNoteId(noteId);
+        note.setStakeholderType("educator");
+        note.setStakeholderId("educator-123");
+        note.setStakeholderName("Jane Smith");
+        note.setNoteText("Initial relationship note");
+        note.setRelationshipStatus("contacted");
+        note.setRelationshipOwnerUID("staff-123");
+        note.setActive(true);
+        return note;
     }
 }

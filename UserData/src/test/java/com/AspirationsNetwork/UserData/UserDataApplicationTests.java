@@ -21,6 +21,7 @@ import com.AspirationsNetwork.UserData.Service.ResearchExportService;
 import com.AspirationsNetwork.UserData.Service.RwdLearningService;
 import com.AspirationsNetwork.UserData.Service.ServiceHourService;
 import com.AspirationsNetwork.UserData.Service.StaffOperationEventService;
+import com.AspirationsNetwork.UserData.Service.StakeholderRelationshipNoteService;
 import com.AspirationsNetwork.UserData.Service.SystemSettingsService;
 import com.AspirationsNetwork.UserData.Service.UserInfoService;
 import com.google.cloud.firestore.Firestore;
@@ -74,6 +75,7 @@ class UserDataApplicationTests {
 			RwdLearningService.class,
 			ServiceHourService.class,
 			StaffOperationEventService.class,
+			StakeholderRelationshipNoteService.class,
 			SystemSettingsService.class,
 			UserInfoService.class,
 			DiscussionPostService.class

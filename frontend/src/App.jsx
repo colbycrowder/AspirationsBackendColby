@@ -20,6 +20,7 @@ import { StaffDashboard } from "./components/StaffDashboard.jsx";
 import { StaffMetricsDashboard } from "./components/StaffMetricsDashboard.jsx";
 import { StaffRwdManagementPage } from "./components/StaffRwdManagementPage.jsx";
 import { StaffYouthManagementPage } from "./components/StaffYouthManagementPage.jsx";
+import { StakeholderRelationshipNotes } from "./components/StakeholderRelationshipNotes.jsx";
 import { UserManagement } from "./components/UserManagement.jsx";
 import { YouthDashboard } from "./components/YouthDashboard.jsx";
 import { ApiAccessError, fetchStaffMetrics } from "./api.js";
@@ -49,6 +50,7 @@ const staffRoutes = [
   { path: "/staff/educators", label: "Educator Management", title: "Educator Management", protected: true, staff: true },
   { path: "/staff/partners", label: "Partner Management", title: "Partner Management", protected: true, staff: true },
   { path: "/staff/government", label: "Government Management", title: "Government Management", protected: true, staff: true },
+  { path: "/staff/relationships", label: "Relationships", title: "Relationships", protected: true, staff: true },
   { path: "/staff/operations-reporting", label: "Operations Reporting", title: "Operations Reporting", protected: true, staff: true },
   { path: "/staff/reporting", label: "Reporting", title: "Reporting", protected: true, staff: true },
   { path: "/staff/metrics", label: "Metrics", title: "Metrics", protected: true, staff: true },
@@ -155,6 +157,11 @@ const pageDetails = {
     eyebrow: "Staff/Admin",
     description: "Staff-managed government and public-sector organization relationship layer.",
     items: ["Create government organization records", "Track workforce and credential partner flags", "Activate or deactivate public-sector relationships"],
+  },
+  "/staff/relationships": {
+    eyebrow: "Staff/Admin",
+    description: "Staff-managed relationship notes across educator, partner, and government stakeholder directories.",
+    items: ["Track partnership stage", "Record follow-up dates", "Review upcoming and overdue relationship activity"],
   },
   "/staff/metrics": {
     eyebrow: "Staff/Admin",
@@ -289,6 +296,8 @@ function RouteContent({ route, detail, navigate }) {
             <PartnerOrganizationManagement />
           ) : route.path === "/staff/government" ? (
             <GovernmentOrganizationManagement />
+          ) : route.path === "/staff/relationships" ? (
+            <StakeholderRelationshipNotes />
           ) : route.path === "/staff/operations-reporting" ? (
             <OperationsReporting />
           ) : route.path === "/staff/reporting" ? (

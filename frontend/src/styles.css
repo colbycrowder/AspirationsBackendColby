@@ -607,12 +607,25 @@ h3 {
   gap: 8px;
 }
 
-.staff-mini-table div {
+.staff-mini-table div,
+.staff-mini-table button {
   display: flex;
   justify-content: space-between;
   gap: 12px;
   padding: 10px 0;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+  background: transparent;
   border-bottom: 1px solid #e8eef4;
+  border-left: 0;
+  border-right: 0;
+  border-top: 0;
+}
+
+.staff-mini-table button:hover {
+  color: #0f766e;
 }
 
 .staff-mini-table small {
