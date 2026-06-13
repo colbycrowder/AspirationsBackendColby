@@ -16,6 +16,7 @@ import com.AspirationsNetwork.UserData.DTO.PartnerOrganizationDTO;
 import com.AspirationsNetwork.UserData.DTO.PartnerOrganizationTotalsDTO;
 import com.AspirationsNetwork.UserData.DTO.PlatformEventRequestDTO;
 import com.AspirationsNetwork.UserData.DTO.PlatformMetricsDTO;
+import com.AspirationsNetwork.UserData.DTO.PilotReadinessDTO;
 import com.AspirationsNetwork.UserData.DTO.PilotReportingDTO;
 import com.AspirationsNetwork.UserData.DTO.ProgramDetailDTO;
 import com.AspirationsNetwork.UserData.DTO.ProgramEnrollmentDTO;
@@ -69,6 +70,7 @@ import com.AspirationsNetwork.UserData.Service.GovernmentOrganizationService;
 import com.AspirationsNetwork.UserData.Service.MetricsService;
 import com.AspirationsNetwork.UserData.Service.NotificationService;
 import com.AspirationsNetwork.UserData.Service.PartnerOrganizationService;
+import com.AspirationsNetwork.UserData.Service.PilotReadinessService;
 import com.AspirationsNetwork.UserData.Service.PilotReportingService;
 import com.AspirationsNetwork.UserData.Service.PlatformEventService;
 import com.AspirationsNetwork.UserData.Service.ProgramEnrollmentService;
@@ -119,6 +121,7 @@ public class UserInfoController {
     private final PartnerOrganizationService partnerOrganizationService;
     private final GovernmentOrganizationService governmentOrganizationService;
     private final StakeholderRelationshipNoteService stakeholderRelationshipNoteService;
+    private final PilotReadinessService pilotReadinessService;
 
     @GetMapping("/getUser/{id}")
     public ResponseEntity<User> getUser(@PathVariable String id) {
@@ -305,6 +308,22 @@ public class UserInfoController {
         try {
             authService.requireStaff(authorizationHeader);
             return ResponseEntity.ok(pilotReportingService.getPilotReportingMetrics());
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @GetMapping("/staff/pilot/readiness")
+    public ResponseEntity<PilotReadinessDTO> getStaffPilotReadiness(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader
+    ) {
+        try {
+            authService.requireStaff(authorizationHeader);
+            return ResponseEntity.ok(pilotReadinessService.getPilotReadiness());
         } catch (UnauthorizedAccessException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         } catch (ForbiddenAccessException e) {

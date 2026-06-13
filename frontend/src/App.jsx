@@ -9,6 +9,7 @@ import { GovernmentOrganizationManagement } from "./components/GovernmentOrganiz
 import { NotificationsPage } from "./components/NotificationsPage.jsx";
 import { OperationsReporting } from "./components/OperationsReporting.jsx";
 import { PartnerOrganizationManagement } from "./components/PartnerOrganizationManagement.jsx";
+import { PilotReadinessDashboard } from "./components/PilotReadinessDashboard.jsx";
 import { PilotReportingDashboard } from "./components/PilotReportingDashboard.jsx";
 import { ProfileCompletionPage } from "./components/ProfileCompletionPage.jsx";
 import { ProgramManagement } from "./components/ProgramManagement.jsx";
@@ -51,6 +52,7 @@ const staffRoutes = [
   { path: "/staff/partners", label: "Partner Management", title: "Partner Management", protected: true, staff: true },
   { path: "/staff/government", label: "Government Management", title: "Government Management", protected: true, staff: true },
   { path: "/staff/relationships", label: "Relationships", title: "Relationships", protected: true, staff: true },
+  { path: "/staff/pilot-readiness", label: "Pilot Readiness", title: "Pilot Readiness", protected: true, staff: true },
   { path: "/staff/operations-reporting", label: "Operations Reporting", title: "Operations Reporting", protected: true, staff: true },
   { path: "/staff/reporting", label: "Reporting", title: "Reporting", protected: true, staff: true },
   { path: "/staff/metrics", label: "Metrics", title: "Metrics", protected: true, staff: true },
@@ -162,6 +164,11 @@ const pageDetails = {
     eyebrow: "Staff/Admin",
     description: "Staff-managed relationship notes across educator, partner, and government stakeholder directories.",
     items: ["Track partnership stage", "Record follow-up dates", "Review upcoming and overdue relationship activity"],
+  },
+  "/staff/pilot-readiness": {
+    eyebrow: "Staff/Admin",
+    description: "Staff-facing readiness dashboard for controlled pilot launch preparation.",
+    items: ["Readiness score", "Blockers and warnings", "Operational checklist"],
   },
   "/staff/metrics": {
     eyebrow: "Staff/Admin",
@@ -298,6 +305,8 @@ function RouteContent({ route, detail, navigate }) {
             <GovernmentOrganizationManagement />
           ) : route.path === "/staff/relationships" ? (
             <StakeholderRelationshipNotes />
+          ) : route.path === "/staff/pilot-readiness" ? (
+            <PilotReadinessDashboard />
           ) : route.path === "/staff/operations-reporting" ? (
             <OperationsReporting />
           ) : route.path === "/staff/reporting" ? (
