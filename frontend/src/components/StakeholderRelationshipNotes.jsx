@@ -19,6 +19,19 @@ const relationshipStatuses = [
   "inactive_partner",
   "declined",
 ];
+const stakeholderTypeLabels = {
+  educator: "Educators",
+  partner_organization: "Partner Organizations",
+  government_organization: "Government Organizations",
+};
+const relationshipStatusLabels = {
+  prospect: "Prospect",
+  contacted: "Contacted",
+  meeting_scheduled: "Meeting Scheduled",
+  active_partner: "Active Partner",
+  inactive_partner: "Inactive Partner",
+  declined: "Declined",
+};
 const emptyFilters = {
   stakeholderType: "",
   stakeholderId: "",
@@ -199,6 +212,15 @@ export function StakeholderRelationshipNotes() {
       <StaffMessage>{message}</StaffMessage>
       <StaffMessage type="error">{error}</StaffMessage>
 
+      <section className="dashboard-section">
+        <div className="section-header">
+          <div>
+            <h3>Relationship Pipeline Summary</h3>
+            <p>Current relationship-note volume and follow-up pressure across external stakeholder records.</p>
+          </div>
+        </div>
+      </section>
+
       <SummaryGrid
         items={[
           { label: "Total Notes", value: totals.totalNotes ?? notes.length },
@@ -251,8 +273,31 @@ export function StakeholderRelationshipNotes() {
             onChange={(event) => setSearch(event.target.value)}
           />
 
-          <GroupedCountPanel title="Notes By Stakeholder Type" values={totals.notesByStakeholderType} />
-          <GroupedCountPanel title="Notes By Relationship Status" values={totals.notesByRelationshipStatus} />
+          <GroupedCountPanel
+            expectedKeys={stakeholderTypes}
+            labels={stakeholderTypeLabels}
+            title="Stakeholder Type Breakdown"
+            values={totals.notesByStakeholderType}
+          />
+          <GroupedCountPanel
+            expectedKeys={relationshipStatuses}
+            labels={relationshipStatusLabels}
+            title="Relationship Status Breakdown"
+            values={totals.notesByRelationshipStatus}
+          />
+          <GroupedCountPanel title="Staff Ownership View" values={totals.notesByRelationshipOwnerUID} />
+          <GroupedCountPanel
+            expectedKeys={stakeholderTypes}
+            labels={stakeholderTypeLabels}
+            title="Upcoming Follow-Ups By Type"
+            values={totals.upcomingFollowUpsByStakeholderType}
+          />
+          <GroupedCountPanel
+            expectedKeys={stakeholderTypes}
+            labels={stakeholderTypeLabels}
+            title="Overdue Follow-Ups By Type"
+            values={totals.overdueFollowUpsByStakeholderType}
+          />
         </div>
 
         <div className="dashboard-section">
@@ -266,6 +311,10 @@ export function StakeholderRelationshipNotes() {
             </button>
           </div>
 
+          <section className="staff-detail-panel">
+            <h3>Follow-Up Management</h3>
+            <p>Use these tables to see which external relationships need staff attention next.</p>
+          </section>
           <FollowUpPanel title="Overdue Follow-Ups" notes={overdueNotes} onSelect={handleSelect} />
           <FollowUpPanel title="Upcoming Follow-Ups" notes={upcomingNotes} onSelect={handleSelect} />
 
@@ -282,7 +331,7 @@ export function StakeholderRelationshipNotes() {
                 >
                   <strong>{note.stakeholderName || note.stakeholderId || "Unnamed stakeholder"}</strong>
                   <span>{note.stakeholderType || "stakeholder"} · {note.relationshipStatus || "prospect"} · {note.active === false ? "inactive" : "active"}</span>
-                  <span>Next follow-up: {formatDate(note.nextFollowUpDate)}</span>
+                  <span>Owner: {note.relationshipOwnerUID || "unassigned"} · Next follow-up: {formatDate(note.nextFollowUpDate)}</span>
                 </button>
               );
             })}
@@ -375,7 +424,10 @@ function FollowUpPanel({ notes, onSelect, title }) {
         <div className="staff-mini-table">
           {notes.slice(0, 5).map((note) => (
             <button key={getNoteId(note)} type="button" onClick={() => onSelect(note)}>
-              <span>{note.stakeholderName || note.stakeholderId || "Stakeholder"}</span>
+              <span>
+                <strong>{note.stakeholderName || note.stakeholderId || "Stakeholder"}</strong>
+                <small>{note.stakeholderType || "stakeholder"} · {note.relationshipStatus || "prospect"} · {note.relationshipOwnerUID || "unassigned"}</small>
+              </span>
               <strong>{formatDate(note.nextFollowUpDate)}</strong>
             </button>
           ))}
@@ -385,8 +437,14 @@ function FollowUpPanel({ notes, onSelect, title }) {
   );
 }
 
-function GroupedCountPanel({ title, values = {} }) {
-  const rows = Object.entries(values || {});
+function GroupedCountPanel({ expectedKeys = [], labels = {}, title, values = {} }) {
+  const merged = { ...(values || {}) };
+  expectedKeys.forEach((key) => {
+    if (merged[key] === undefined) {
+      merged[key] = 0;
+    }
+  });
+  const rows = Object.entries(merged);
 
   return (
     <section className="staff-detail-panel">
@@ -397,7 +455,7 @@ function GroupedCountPanel({ title, values = {} }) {
         <div className="staff-mini-table">
           {rows.map(([label, count]) => (
             <div key={label}>
-              <span>{label || "other"}</span>
+              <span>{labels[label] || label || "other"}</span>
               <strong>{count ?? 0}</strong>
             </div>
           ))}

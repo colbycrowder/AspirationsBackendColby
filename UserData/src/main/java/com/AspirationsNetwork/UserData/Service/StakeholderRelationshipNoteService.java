@@ -161,6 +161,7 @@ public class StakeholderRelationshipNoteService {
 
         for (StakeholderRelationshipNote note : getNotes(null, null, null, null, null, null, null)) {
             totals.setTotalNotes(totals.getTotalNotes() + 1);
+            String stakeholderType = normalizeExistingStakeholderType(note.getStakeholderType());
             if (note.isActive()) {
                 totals.setActiveNotes(totals.getActiveNotes() + 1);
             } else {
@@ -168,16 +169,20 @@ public class StakeholderRelationshipNoteService {
             }
 
             totals.getNotesByStakeholderType()
-                    .merge(normalizeExistingStakeholderType(note.getStakeholderType()), 1L, Long::sum);
+                    .merge(stakeholderType, 1L, Long::sum);
             totals.getNotesByRelationshipStatus()
                     .merge(normalizeExistingRelationshipStatus(note.getRelationshipStatus()), 1L, Long::sum);
+            totals.getNotesByRelationshipOwnerUID()
+                    .merge(normalizeOwnerUID(note.getRelationshipOwnerUID()), 1L, Long::sum);
 
             Date followUp = note.getNextFollowUpDate();
             if (note.isActive() && followUp != null) {
                 if (followUp.before(now)) {
                     totals.setOverdueFollowUps(totals.getOverdueFollowUps() + 1);
+                    totals.getOverdueFollowUpsByStakeholderType().merge(stakeholderType, 1L, Long::sum);
                 } else {
                     totals.setUpcomingFollowUps(totals.getUpcomingFollowUps() + 1);
+                    totals.getUpcomingFollowUpsByStakeholderType().merge(stakeholderType, 1L, Long::sum);
                 }
             }
         }
@@ -284,6 +289,10 @@ public class StakeholderRelationshipNoteService {
         }
         String normalized = value.trim().toLowerCase();
         return RELATIONSHIP_STATUSES.contains(normalized) ? normalized : "prospect";
+    }
+
+    private String normalizeOwnerUID(String value) {
+        return value == null || value.isBlank() ? "unassigned" : value.trim();
     }
 
     private String trim(String value) {

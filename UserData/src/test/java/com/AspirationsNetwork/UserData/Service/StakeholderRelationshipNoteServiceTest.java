@@ -243,6 +243,9 @@ class StakeholderRelationshipNoteServiceTest {
         assertEquals(1, totals.getOverdueFollowUps());
         assertEquals(1, totals.getNotesByStakeholderType().get("educator"));
         assertEquals(1, totals.getNotesByRelationshipStatus().get("contacted"));
+        assertEquals(3, totals.getNotesByRelationshipOwnerUID().get("staff-123"));
+        assertEquals(1, totals.getUpcomingFollowUpsByStakeholderType().get("educator"));
+        assertEquals(1, totals.getOverdueFollowUpsByStakeholderType().get("partner_organization"));
     }
 
     @Test

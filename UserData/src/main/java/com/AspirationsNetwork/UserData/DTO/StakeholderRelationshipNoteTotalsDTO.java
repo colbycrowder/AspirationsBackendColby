@@ -14,6 +14,9 @@ public class StakeholderRelationshipNoteTotalsDTO {
     private long inactiveNotes;
     private Map<String, Long> notesByStakeholderType = new HashMap<>();
     private Map<String, Long> notesByRelationshipStatus = new HashMap<>();
+    private Map<String, Long> notesByRelationshipOwnerUID = new HashMap<>();
+    private Map<String, Long> upcomingFollowUpsByStakeholderType = new HashMap<>();
+    private Map<String, Long> overdueFollowUpsByStakeholderType = new HashMap<>();
     private long upcomingFollowUps;
     private long overdueFollowUps;
 }
