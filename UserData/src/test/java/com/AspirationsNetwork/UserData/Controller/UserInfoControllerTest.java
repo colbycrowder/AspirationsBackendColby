@@ -11,6 +11,8 @@ import com.AspirationsNetwork.UserData.DTO.EducatorDTO;
 import com.AspirationsNetwork.UserData.DTO.EducatorTotalsDTO;
 import com.AspirationsNetwork.UserData.DTO.ExternalDatasetDTO;
 import com.AspirationsNetwork.UserData.DTO.ParticipantExternalLinkDTO;
+import com.AspirationsNetwork.UserData.DTO.PartnerOrganizationDTO;
+import com.AspirationsNetwork.UserData.DTO.PartnerOrganizationTotalsDTO;
 import com.AspirationsNetwork.UserData.DTO.PlatformMetricsDTO;
 import com.AspirationsNetwork.UserData.DTO.PlatformEventRequestDTO;
 import com.AspirationsNetwork.UserData.DTO.PilotReportingDTO;
@@ -41,6 +43,7 @@ import com.AspirationsNetwork.UserData.Models.Educator;
 import com.AspirationsNetwork.UserData.Models.ExternalDataset;
 import com.AspirationsNetwork.UserData.Models.Notification;
 import com.AspirationsNetwork.UserData.Models.ParticipantExternalLink;
+import com.AspirationsNetwork.UserData.Models.PartnerOrganization;
 import com.AspirationsNetwork.UserData.Models.Program;
 import com.AspirationsNetwork.UserData.Models.ProgramEnrollment;
 import com.AspirationsNetwork.UserData.Models.RwdActivity;
@@ -57,6 +60,7 @@ import com.AspirationsNetwork.UserData.Service.ExternalDatasetLinkService;
 import com.AspirationsNetwork.UserData.Service.ForbiddenAccessException;
 import com.AspirationsNetwork.UserData.Service.MetricsService;
 import com.AspirationsNetwork.UserData.Service.NotificationService;
+import com.AspirationsNetwork.UserData.Service.PartnerOrganizationService;
 import com.AspirationsNetwork.UserData.Service.PilotReportingService;
 import com.AspirationsNetwork.UserData.Service.PlatformEventService;
 import com.AspirationsNetwork.UserData.Service.ProgramEnrollmentService;
@@ -108,6 +112,7 @@ class UserInfoControllerTest {
     private final ResearchExportService researchExportService = mock(ResearchExportService.class);
     private final StaffOperationEventService staffOperationEventService = mock(StaffOperationEventService.class);
     private final EducatorService educatorService = mock(EducatorService.class);
+    private final PartnerOrganizationService partnerOrganizationService = mock(PartnerOrganizationService.class);
     private final UserInfoController controller = new UserInfoController(
             userInfoService,
             discussionPostService,
@@ -127,7 +132,8 @@ class UserInfoControllerTest {
             externalDatasetLinkService,
             researchExportService,
             staffOperationEventService,
-            educatorService
+            educatorService,
+            partnerOrganizationService
     );
 
     @Test
@@ -1718,6 +1724,124 @@ class UserInfoControllerTest {
         assertNull(response.getBody());
     }
 
+    @Test
+    void createPartnerOrganizationReturnsPartnerIdForStaffToken() throws Exception {
+        PartnerOrganizationDTO dto = partnerOrganizationDto();
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+        when(partnerOrganizationService.createPartnerOrganization(dto)).thenReturn("partner-123");
+
+        ResponseEntity<String> response = controller.createPartnerOrganizationForStaff("Bearer staff-token", dto);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("partner-123", response.getBody());
+        verify(partnerOrganizationService).createPartnerOrganization(dto);
+    }
+
+    @Test
+    void getPartnerOrganizationsForStaffPassesFiltersToService() throws Exception {
+        PartnerOrganization partner = partnerOrganization("partner-123");
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+        when(partnerOrganizationService.getPartnerOrganizations("nonprofit", true, "ASPN"))
+                .thenReturn(List.of(partner));
+
+        ResponseEntity<List<PartnerOrganization>> response = controller.getPartnerOrganizationsForStaff(
+                "Bearer staff-token",
+                "nonprofit",
+                true,
+                "ASPN"
+        );
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(1, response.getBody().size());
+        assertEquals("partner-123", response.getBody().get(0).getPartnerOrganizationId());
+    }
+
+    @Test
+    void getPartnerOrganizationForStaffReturnsDetail() throws Exception {
+        PartnerOrganization partner = partnerOrganization("partner-123");
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+        when(partnerOrganizationService.getPartnerOrganization("partner-123")).thenReturn(partner);
+
+        ResponseEntity<PartnerOrganization> response = controller.getPartnerOrganizationForStaff("Bearer staff-token", "partner-123");
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("partner-123", response.getBody().getPartnerOrganizationId());
+    }
+
+    @Test
+    void getMissingPartnerOrganizationForStaffReturnsNotFound() throws Exception {
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+        when(partnerOrganizationService.getPartnerOrganization("missing-partner")).thenReturn(null);
+
+        ResponseEntity<PartnerOrganization> response = controller.getPartnerOrganizationForStaff("Bearer staff-token", "missing-partner");
+
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+        assertNull(response.getBody());
+    }
+
+    @Test
+    void updatePartnerOrganizationForStaffReturnsUpdated() throws Exception {
+        PartnerOrganizationDTO dto = partnerOrganizationDto();
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+
+        ResponseEntity<String> response = controller.updatePartnerOrganizationForStaff("Bearer staff-token", "partner-123", dto);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("Updated", response.getBody());
+        verify(partnerOrganizationService).updatePartnerOrganization("partner-123", dto);
+    }
+
+    @Test
+    void activateAndDeactivatePartnerOrganizationForStaffRequireStaffToken() throws Exception {
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+
+        ResponseEntity<String> activateResponse = controller.activatePartnerOrganizationForStaff("Bearer staff-token", "partner-123");
+        ResponseEntity<String> deactivateResponse = controller.deactivatePartnerOrganizationForStaff("Bearer staff-token", "partner-123");
+
+        assertEquals(HttpStatus.OK, activateResponse.getStatusCode());
+        assertEquals("Activated", activateResponse.getBody());
+        assertEquals(HttpStatus.OK, deactivateResponse.getStatusCode());
+        assertEquals("Deactivated", deactivateResponse.getBody());
+        verify(partnerOrganizationService).activatePartnerOrganization("partner-123");
+        verify(partnerOrganizationService).deactivatePartnerOrganization("partner-123");
+    }
+
+    @Test
+    void getPartnerOrganizationTotalsForStaffReturnsTotals() throws Exception {
+        PartnerOrganizationTotalsDTO totals = new PartnerOrganizationTotalsDTO();
+        totals.setTotalPartners(2);
+        totals.setActivePartners(1);
+        totals.setInactivePartners(1);
+        totals.setOrganizationTypesRepresented(2);
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+        when(partnerOrganizationService.getPartnerOrganizationTotals()).thenReturn(totals);
+
+        ResponseEntity<PartnerOrganizationTotalsDTO> response = controller.getPartnerOrganizationTotalsForStaff("Bearer staff-token");
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(2, response.getBody().getTotalPartners());
+        assertEquals(1, response.getBody().getActivePartners());
+        assertEquals(1, response.getBody().getInactivePartners());
+        assertEquals(2, response.getBody().getOrganizationTypesRepresented());
+    }
+
+    @Test
+    void getPartnerOrganizationsForStaffRejectsYouthToken() throws Exception {
+        doThrow(new ForbiddenAccessException("Staff role is required"))
+                .when(authService)
+                .requireStaff("Bearer youth-token");
+
+        ResponseEntity<List<PartnerOrganization>> response = controller.getPartnerOrganizationsForStaff(
+                "Bearer youth-token",
+                null,
+                null,
+                null
+        );
+
+        assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
+        assertNull(response.getBody());
+    }
+
     private EducatorDTO educatorDto() {
         EducatorDTO dto = new EducatorDTO();
         dto.setFirstName("Jane");
@@ -1742,5 +1866,30 @@ class UserInfoControllerTest {
         educator.setOrganizationType("high_school");
         educator.setActive(true);
         return educator;
+    }
+
+    private PartnerOrganizationDTO partnerOrganizationDto() {
+        PartnerOrganizationDTO dto = new PartnerOrganizationDTO();
+        dto.setOrganizationName("ASPN Partner");
+        dto.setOrganizationType("nonprofit");
+        dto.setWebsite("https://example.org");
+        dto.setPrimaryContactName("Jordan Lee");
+        dto.setPrimaryContactEmail("jordan@example.org");
+        dto.setPrimaryContactPhone("314-555-1212");
+        dto.setActive(true);
+        dto.setNotes("Pilot partner contact");
+        return dto;
+    }
+
+    private PartnerOrganization partnerOrganization(String partnerOrganizationId) {
+        PartnerOrganization partner = new PartnerOrganization();
+        partner.setPartnerOrganizationId(partnerOrganizationId);
+        partner.setOrganizationName("ASPN Partner");
+        partner.setOrganizationType("nonprofit");
+        partner.setWebsite("https://example.org");
+        partner.setPrimaryContactName("Jordan Lee");
+        partner.setPrimaryContactEmail("jordan@example.org");
+        partner.setActive(true);
+        return partner;
     }
 }

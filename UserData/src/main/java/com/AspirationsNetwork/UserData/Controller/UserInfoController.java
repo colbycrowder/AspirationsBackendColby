@@ -10,6 +10,8 @@ import com.AspirationsNetwork.UserData.DTO.EducatorDTO;
 import com.AspirationsNetwork.UserData.DTO.EducatorTotalsDTO;
 import com.AspirationsNetwork.UserData.DTO.ExternalDatasetDTO;
 import com.AspirationsNetwork.UserData.DTO.ParticipantExternalLinkDTO;
+import com.AspirationsNetwork.UserData.DTO.PartnerOrganizationDTO;
+import com.AspirationsNetwork.UserData.DTO.PartnerOrganizationTotalsDTO;
 import com.AspirationsNetwork.UserData.DTO.PlatformEventRequestDTO;
 import com.AspirationsNetwork.UserData.DTO.PlatformMetricsDTO;
 import com.AspirationsNetwork.UserData.DTO.PilotReportingDTO;
@@ -41,6 +43,7 @@ import com.AspirationsNetwork.UserData.Models.Educator;
 import com.AspirationsNetwork.UserData.Models.ExternalDataset;
 import com.AspirationsNetwork.UserData.Models.Notification;
 import com.AspirationsNetwork.UserData.Models.ParticipantExternalLink;
+import com.AspirationsNetwork.UserData.Models.PartnerOrganization;
 import com.AspirationsNetwork.UserData.Models.PlatformEventType;
 import com.AspirationsNetwork.UserData.Models.Program;
 import com.AspirationsNetwork.UserData.Models.ProgramEnrollment;
@@ -58,6 +61,7 @@ import com.AspirationsNetwork.UserData.Service.ExternalDatasetLinkService;
 import com.AspirationsNetwork.UserData.Service.ForbiddenAccessException;
 import com.AspirationsNetwork.UserData.Service.MetricsService;
 import com.AspirationsNetwork.UserData.Service.NotificationService;
+import com.AspirationsNetwork.UserData.Service.PartnerOrganizationService;
 import com.AspirationsNetwork.UserData.Service.PilotReportingService;
 import com.AspirationsNetwork.UserData.Service.PlatformEventService;
 import com.AspirationsNetwork.UserData.Service.ProgramEnrollmentService;
@@ -104,6 +108,7 @@ public class UserInfoController {
     private final ResearchExportService researchExportService;
     private final StaffOperationEventService staffOperationEventService;
     private final EducatorService educatorService;
+    private final PartnerOrganizationService partnerOrganizationService;
 
     @GetMapping("/getUser/{id}")
     public ResponseEntity<User> getUser(@PathVariable String id) {
@@ -1193,6 +1198,146 @@ public class UserInfoController {
             return ResponseEntity.badRequest().body(e.getMessage());
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body("Error deactivating educator");
+        }
+    }
+
+    @GetMapping("/staff/partners")
+    public ResponseEntity<List<PartnerOrganization>> getPartnerOrganizationsForStaff(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestParam(value = "organizationType", required = false) String organizationType,
+            @RequestParam(value = "active", required = false) Boolean active,
+            @RequestParam(value = "organizationName", required = false) String organizationName
+    ) {
+        try {
+            authService.requireStaff(authorizationHeader);
+            return ResponseEntity.ok(partnerOrganizationService.getPartnerOrganizations(organizationType, active, organizationName));
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @GetMapping("/staff/partners/totals")
+    public ResponseEntity<PartnerOrganizationTotalsDTO> getPartnerOrganizationTotalsForStaff(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader
+    ) {
+        try {
+            authService.requireStaff(authorizationHeader);
+            return ResponseEntity.ok(partnerOrganizationService.getPartnerOrganizationTotals());
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @GetMapping("/staff/partners/{partnerOrganizationId}")
+    public ResponseEntity<PartnerOrganization> getPartnerOrganizationForStaff(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @PathVariable String partnerOrganizationId
+    ) {
+        try {
+            authService.requireStaff(authorizationHeader);
+            PartnerOrganization partner = partnerOrganizationService.getPartnerOrganization(partnerOrganizationId);
+            if (partner == null) {
+                return ResponseEntity.notFound().build();
+            }
+            return ResponseEntity.ok(partner);
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @PostMapping("/staff/partners")
+    public ResponseEntity<String> createPartnerOrganizationForStaff(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestBody PartnerOrganizationDTO dto
+    ) {
+        try {
+            authService.requireStaff(authorizationHeader);
+            return ResponseEntity.ok(partnerOrganizationService.createPartnerOrganization(dto));
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Error creating partner organization");
+        }
+    }
+
+    @PatchMapping("/staff/partners/{partnerOrganizationId}")
+    public ResponseEntity<String> updatePartnerOrganizationForStaff(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @PathVariable String partnerOrganizationId,
+            @RequestBody PartnerOrganizationDTO dto
+    ) {
+        try {
+            authService.requireStaff(authorizationHeader);
+            partnerOrganizationService.updatePartnerOrganization(partnerOrganizationId, dto);
+            return ResponseEntity.ok("Updated");
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Error updating partner organization");
+        }
+    }
+
+    @PatchMapping("/staff/partners/{partnerOrganizationId}/activate")
+    public ResponseEntity<String> activatePartnerOrganizationForStaff(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @PathVariable String partnerOrganizationId
+    ) {
+        try {
+            authService.requireStaff(authorizationHeader);
+            partnerOrganizationService.activatePartnerOrganization(partnerOrganizationId);
+            return ResponseEntity.ok("Activated");
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Error activating partner organization");
+        }
+    }
+
+    @PatchMapping("/staff/partners/{partnerOrganizationId}/deactivate")
+    public ResponseEntity<String> deactivatePartnerOrganizationForStaff(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @PathVariable String partnerOrganizationId
+    ) {
+        try {
+            authService.requireStaff(authorizationHeader);
+            partnerOrganizationService.deactivatePartnerOrganization(partnerOrganizationId);
+            return ResponseEntity.ok("Deactivated");
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Error deactivating partner organization");
         }
     }
 

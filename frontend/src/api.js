@@ -961,6 +961,95 @@ export async function deactivateStaffEducator(user, educatorId) {
   return response.text();
 }
 
+export async function fetchStaffPartnerOrganizations(user, filters = {}) {
+  const params = new URLSearchParams();
+  if (filters.organizationType) {
+    params.set("organizationType", filters.organizationType);
+  }
+  if (filters.active !== undefined && filters.active !== "") {
+    params.set("active", String(filters.active));
+  }
+  if (filters.organizationName) {
+    params.set("organizationName", filters.organizationName);
+  }
+
+  const query = params.toString();
+  const response = await fetchStaffEndpoint(user, `/api/staff/partners${query ? `?${query}` : ""}`);
+  const partners = await response.json();
+  return Array.isArray(partners) ? partners : [];
+}
+
+export async function fetchStaffPartnerOrganization(user, partnerOrganizationId) {
+  if (!partnerOrganizationId) {
+    throw new Error("Partner organization selection is required.");
+  }
+
+  const response = await fetchStaffEndpoint(user, `/api/staff/partners/${encodeURIComponent(partnerOrganizationId)}`);
+  return response.json();
+}
+
+export async function fetchStaffPartnerOrganizationTotals(user) {
+  const response = await fetchStaffEndpoint(user, "/api/staff/partners/totals");
+  const totals = await response.json();
+  return totals && typeof totals === "object" ? totals : {};
+}
+
+export async function createStaffPartnerOrganization(user, partnerOrganization) {
+  const response = await fetchStaffEndpoint(user, "/api/staff/partners", {
+    body: JSON.stringify(partnerOrganization),
+    headers: {
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+  });
+
+  return response.text();
+}
+
+export async function updateStaffPartnerOrganization(user, partnerOrganizationId, updates) {
+  if (!partnerOrganizationId) {
+    throw new Error("Partner organization selection is required.");
+  }
+
+  const response = await fetchStaffEndpoint(user, `/api/staff/partners/${encodeURIComponent(partnerOrganizationId)}`, {
+    body: JSON.stringify(updates),
+    headers: {
+      "Content-Type": "application/json",
+    },
+    method: "PATCH",
+  });
+
+  return response.text();
+}
+
+export async function activateStaffPartnerOrganization(user, partnerOrganizationId) {
+  if (!partnerOrganizationId) {
+    throw new Error("Partner organization selection is required.");
+  }
+
+  const response = await fetchStaffEndpoint(
+    user,
+    `/api/staff/partners/${encodeURIComponent(partnerOrganizationId)}/activate`,
+    { method: "PATCH" }
+  );
+
+  return response.text();
+}
+
+export async function deactivateStaffPartnerOrganization(user, partnerOrganizationId) {
+  if (!partnerOrganizationId) {
+    throw new Error("Partner organization selection is required.");
+  }
+
+  const response = await fetchStaffEndpoint(
+    user,
+    `/api/staff/partners/${encodeURIComponent(partnerOrganizationId)}/deactivate`,
+    { method: "PATCH" }
+  );
+
+  return response.text();
+}
+
 async function fetchStaffEndpoint(user, path, options = {}) {
   if (!user) {
     throw new ApiAccessError("Sign in before opening staff/admin tools.", 401);

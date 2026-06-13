@@ -11,6 +11,7 @@ import com.AspirationsNetwork.UserData.Service.ExternalDatasetLinkService;
 import com.AspirationsNetwork.UserData.Service.MetricsService;
 import com.AspirationsNetwork.UserData.Service.NotificationService;
 import com.AspirationsNetwork.UserData.Service.ParticipantIdService;
+import com.AspirationsNetwork.UserData.Service.PartnerOrganizationService;
 import com.AspirationsNetwork.UserData.Service.PilotReportingService;
 import com.AspirationsNetwork.UserData.Service.PlatformEventService;
 import com.AspirationsNetwork.UserData.Service.ProgramEnrollmentService;
@@ -62,6 +63,7 @@ class UserDataApplicationTests {
 			MetricsService.class,
 			NotificationService.class,
 			ParticipantIdService.class,
+			PartnerOrganizationService.class,
 			PilotReportingService.class,
 			PlatformEventService.class,
 			ProgramEnrollmentService.class,
