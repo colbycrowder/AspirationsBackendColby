@@ -7,6 +7,8 @@ import com.AspirationsNetwork.UserData.DTO.CredentialDefinitionCreationDTO;
 import com.AspirationsNetwork.UserData.DTO.CredentialDefinitionUpdateDTO;
 import com.AspirationsNetwork.UserData.DTO.CredentialTotalsDTO;
 import com.AspirationsNetwork.UserData.DTO.EarnedCredentialDisplayDTO;
+import com.AspirationsNetwork.UserData.DTO.EducatorDTO;
+import com.AspirationsNetwork.UserData.DTO.EducatorTotalsDTO;
 import com.AspirationsNetwork.UserData.DTO.ExternalDatasetDTO;
 import com.AspirationsNetwork.UserData.DTO.ParticipantExternalLinkDTO;
 import com.AspirationsNetwork.UserData.DTO.PlatformMetricsDTO;
@@ -35,6 +37,7 @@ import com.AspirationsNetwork.UserData.Models.AttendanceRecord;
 import com.AspirationsNetwork.UserData.Models.Comment;
 import com.AspirationsNetwork.UserData.Models.CredentialDefinition;
 import com.AspirationsNetwork.UserData.Models.DiscussionPost;
+import com.AspirationsNetwork.UserData.Models.Educator;
 import com.AspirationsNetwork.UserData.Models.ExternalDataset;
 import com.AspirationsNetwork.UserData.Models.Notification;
 import com.AspirationsNetwork.UserData.Models.ParticipantExternalLink;
@@ -49,6 +52,7 @@ import com.AspirationsNetwork.UserData.Service.AuthService;
 import com.AspirationsNetwork.UserData.Service.CredentialService;
 import com.AspirationsNetwork.UserData.Service.DashboardService;
 import com.AspirationsNetwork.UserData.Service.DiscussionPostService;
+import com.AspirationsNetwork.UserData.Service.EducatorService;
 import com.AspirationsNetwork.UserData.Service.ExternalDatasetLinkService;
 import com.AspirationsNetwork.UserData.Service.ForbiddenAccessException;
 import com.AspirationsNetwork.UserData.Service.MetricsService;
@@ -103,6 +107,7 @@ class UserInfoControllerTest {
     private final ExternalDatasetLinkService externalDatasetLinkService = mock(ExternalDatasetLinkService.class);
     private final ResearchExportService researchExportService = mock(ResearchExportService.class);
     private final StaffOperationEventService staffOperationEventService = mock(StaffOperationEventService.class);
+    private final EducatorService educatorService = mock(EducatorService.class);
     private final UserInfoController controller = new UserInfoController(
             userInfoService,
             discussionPostService,
@@ -121,7 +126,8 @@ class UserInfoControllerTest {
             pilotReportingService,
             externalDatasetLinkService,
             researchExportService,
-            staffOperationEventService
+            staffOperationEventService,
+            educatorService
     );
 
     @Test
@@ -1590,5 +1596,151 @@ class UserInfoControllerTest {
 
         assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
         assertNull(response.getBody());
+    }
+
+    @Test
+    void createEducatorReturnsEducatorIdForStaffToken() throws Exception {
+        EducatorDTO dto = educatorDto();
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+        when(educatorService.createEducator(dto)).thenReturn("educator-123");
+
+        ResponseEntity<String> response = controller.createEducatorForStaff("Bearer staff-token", dto);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("educator-123", response.getBody());
+        verify(educatorService).createEducator(dto);
+    }
+
+    @Test
+    void getEducatorsForStaffPassesFiltersToService() throws Exception {
+        Educator educator = educator("educator-123");
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+        when(educatorService.getEducators("high_school", true, "Hazelwood", "Jane"))
+                .thenReturn(List.of(educator));
+
+        ResponseEntity<List<Educator>> response = controller.getEducatorsForStaff(
+                "Bearer staff-token",
+                "high_school",
+                true,
+                "Hazelwood",
+                "Jane"
+        );
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(1, response.getBody().size());
+        assertEquals("educator-123", response.getBody().get(0).getEducatorId());
+    }
+
+    @Test
+    void getEducatorForStaffReturnsDetail() throws Exception {
+        Educator educator = educator("educator-123");
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+        when(educatorService.getEducator("educator-123")).thenReturn(educator);
+
+        ResponseEntity<Educator> response = controller.getEducatorForStaff("Bearer staff-token", "educator-123");
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("educator-123", response.getBody().getEducatorId());
+    }
+
+    @Test
+    void getMissingEducatorForStaffReturnsNotFound() throws Exception {
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+        when(educatorService.getEducator("missing-educator")).thenReturn(null);
+
+        ResponseEntity<Educator> response = controller.getEducatorForStaff("Bearer staff-token", "missing-educator");
+
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+        assertNull(response.getBody());
+    }
+
+    @Test
+    void updateEducatorForStaffReturnsUpdated() throws Exception {
+        EducatorDTO dto = educatorDto();
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+
+        ResponseEntity<String> response = controller.updateEducatorForStaff("Bearer staff-token", "educator-123", dto);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("Updated", response.getBody());
+        verify(educatorService).updateEducator("educator-123", dto);
+    }
+
+    @Test
+    void activateAndDeactivateEducatorForStaffRequireStaffToken() throws Exception {
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+
+        ResponseEntity<String> activateResponse = controller.activateEducatorForStaff("Bearer staff-token", "educator-123");
+        ResponseEntity<String> deactivateResponse = controller.deactivateEducatorForStaff("Bearer staff-token", "educator-123");
+
+        assertEquals(HttpStatus.OK, activateResponse.getStatusCode());
+        assertEquals("Activated", activateResponse.getBody());
+        assertEquals(HttpStatus.OK, deactivateResponse.getStatusCode());
+        assertEquals("Deactivated", deactivateResponse.getBody());
+        verify(educatorService).activateEducator("educator-123");
+        verify(educatorService).deactivateEducator("educator-123");
+    }
+
+    @Test
+    void getEducatorTotalsForStaffReturnsTotals() throws Exception {
+        EducatorTotalsDTO totals = new EducatorTotalsDTO();
+        totals.setTotalEducators(2);
+        totals.setActiveEducators(1);
+        totals.setInactiveEducators(1);
+        totals.setOrganizationsRepresented(2);
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+        when(educatorService.getEducatorTotals()).thenReturn(totals);
+
+        ResponseEntity<EducatorTotalsDTO> response = controller.getEducatorTotalsForStaff("Bearer staff-token");
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(2, response.getBody().getTotalEducators());
+        assertEquals(1, response.getBody().getActiveEducators());
+        assertEquals(1, response.getBody().getInactiveEducators());
+        assertEquals(2, response.getBody().getOrganizationsRepresented());
+    }
+
+    @Test
+    void getEducatorsForStaffRejectsYouthToken() throws Exception {
+        doThrow(new ForbiddenAccessException("Staff role is required"))
+                .when(authService)
+                .requireStaff("Bearer youth-token");
+
+        ResponseEntity<List<Educator>> response = controller.getEducatorsForStaff(
+                "Bearer youth-token",
+                null,
+                null,
+                null,
+                null
+        );
+
+        assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
+        assertNull(response.getBody());
+    }
+
+    private EducatorDTO educatorDto() {
+        EducatorDTO dto = new EducatorDTO();
+        dto.setFirstName("Jane");
+        dto.setLastName("Smith");
+        dto.setEmail("jane@school.org");
+        dto.setPhone("314-555-1234");
+        dto.setTitle("Counselor");
+        dto.setOrganizationName("Hazelwood East High School");
+        dto.setOrganizationType("high_school");
+        dto.setActive(true);
+        dto.setNotes("Primary counselor contact");
+        return dto;
+    }
+
+    private Educator educator(String educatorId) {
+        Educator educator = new Educator();
+        educator.setEducatorId(educatorId);
+        educator.setFirstName("Jane");
+        educator.setLastName("Smith");
+        educator.setEmail("jane@school.org");
+        educator.setOrganizationName("Hazelwood East High School");
+        educator.setOrganizationType("high_school");
+        educator.setActive(true);
+        return educator;
     }
 }

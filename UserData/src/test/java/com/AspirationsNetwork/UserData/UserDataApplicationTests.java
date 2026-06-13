@@ -6,6 +6,7 @@ import com.AspirationsNetwork.UserData.Service.AuthService;
 import com.AspirationsNetwork.UserData.Service.CredentialService;
 import com.AspirationsNetwork.UserData.Service.DashboardService;
 import com.AspirationsNetwork.UserData.Service.DiscussionPostService;
+import com.AspirationsNetwork.UserData.Service.EducatorService;
 import com.AspirationsNetwork.UserData.Service.ExternalDatasetLinkService;
 import com.AspirationsNetwork.UserData.Service.MetricsService;
 import com.AspirationsNetwork.UserData.Service.NotificationService;
@@ -56,6 +57,7 @@ class UserDataApplicationTests {
 			AuthService.class,
 			CredentialService.class,
 			DashboardService.class,
+			EducatorService.class,
 			ExternalDatasetLinkService.class,
 			MetricsService.class,
 			NotificationService.class,

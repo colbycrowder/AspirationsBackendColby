@@ -873,6 +873,94 @@ export async function updateStaffRwdActivity(user, rwdActivityId, updates) {
   return response.text();
 }
 
+export async function fetchStaffEducators(user, filters = {}) {
+  const params = new URLSearchParams();
+  if (filters.organizationType) {
+    params.set("organizationType", filters.organizationType);
+  }
+  if (filters.active !== undefined && filters.active !== "") {
+    params.set("active", String(filters.active));
+  }
+  if (filters.organizationName) {
+    params.set("organizationName", filters.organizationName);
+  }
+  if (filters.search) {
+    params.set("search", filters.search);
+  }
+
+  const query = params.toString();
+  const response = await fetchStaffEndpoint(user, `/api/staff/educators${query ? `?${query}` : ""}`);
+  const educators = await response.json();
+  return Array.isArray(educators) ? educators : [];
+}
+
+export async function fetchStaffEducator(user, educatorId) {
+  if (!educatorId) {
+    throw new Error("Educator selection is required.");
+  }
+
+  const response = await fetchStaffEndpoint(user, `/api/staff/educators/${encodeURIComponent(educatorId)}`);
+  return response.json();
+}
+
+export async function fetchStaffEducatorTotals(user) {
+  const response = await fetchStaffEndpoint(user, "/api/staff/educators/totals");
+  const totals = await response.json();
+  return totals && typeof totals === "object" ? totals : {};
+}
+
+export async function createStaffEducator(user, educator) {
+  const response = await fetchStaffEndpoint(user, "/api/staff/educators", {
+    body: JSON.stringify(educator),
+    headers: {
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+  });
+
+  return response.text();
+}
+
+export async function updateStaffEducator(user, educatorId, updates) {
+  if (!educatorId) {
+    throw new Error("Educator selection is required.");
+  }
+
+  const response = await fetchStaffEndpoint(user, `/api/staff/educators/${encodeURIComponent(educatorId)}`, {
+    body: JSON.stringify(updates),
+    headers: {
+      "Content-Type": "application/json",
+    },
+    method: "PATCH",
+  });
+
+  return response.text();
+}
+
+export async function activateStaffEducator(user, educatorId) {
+  if (!educatorId) {
+    throw new Error("Educator selection is required.");
+  }
+
+  const response = await fetchStaffEndpoint(user, `/api/staff/educators/${encodeURIComponent(educatorId)}/activate`, {
+    method: "PATCH",
+  });
+
+  return response.text();
+}
+
+export async function deactivateStaffEducator(user, educatorId) {
+  if (!educatorId) {
+    throw new Error("Educator selection is required.");
+  }
+
+  const response = await fetchStaffEndpoint(user, `/api/staff/educators/${encodeURIComponent(educatorId)}/deactivate`, {
+    method: "PATCH",
+  });
+
+  return response.text();
+}
+
 async function fetchStaffEndpoint(user, path, options = {}) {
   if (!user) {
     throw new ApiAccessError("Sign in before opening staff/admin tools.", 401);

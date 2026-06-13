@@ -6,6 +6,8 @@ import com.AspirationsNetwork.UserData.DTO.AwardCredentialDTO;
 import com.AspirationsNetwork.UserData.DTO.CredentialDefinitionCreationDTO;
 import com.AspirationsNetwork.UserData.DTO.CredentialDefinitionUpdateDTO;
 import com.AspirationsNetwork.UserData.DTO.CredentialTotalsDTO;
+import com.AspirationsNetwork.UserData.DTO.EducatorDTO;
+import com.AspirationsNetwork.UserData.DTO.EducatorTotalsDTO;
 import com.AspirationsNetwork.UserData.DTO.ExternalDatasetDTO;
 import com.AspirationsNetwork.UserData.DTO.ParticipantExternalLinkDTO;
 import com.AspirationsNetwork.UserData.DTO.PlatformEventRequestDTO;
@@ -35,6 +37,7 @@ import com.AspirationsNetwork.UserData.Models.AttendanceRecord;
 import com.AspirationsNetwork.UserData.Models.Comment;
 import com.AspirationsNetwork.UserData.Models.CredentialDefinition;
 import com.AspirationsNetwork.UserData.Models.DiscussionPost;
+import com.AspirationsNetwork.UserData.Models.Educator;
 import com.AspirationsNetwork.UserData.Models.ExternalDataset;
 import com.AspirationsNetwork.UserData.Models.Notification;
 import com.AspirationsNetwork.UserData.Models.ParticipantExternalLink;
@@ -50,6 +53,7 @@ import com.AspirationsNetwork.UserData.Service.AuthService;
 import com.AspirationsNetwork.UserData.Service.CredentialService;
 import com.AspirationsNetwork.UserData.Service.DashboardService;
 import com.AspirationsNetwork.UserData.Service.DiscussionPostService;
+import com.AspirationsNetwork.UserData.Service.EducatorService;
 import com.AspirationsNetwork.UserData.Service.ExternalDatasetLinkService;
 import com.AspirationsNetwork.UserData.Service.ForbiddenAccessException;
 import com.AspirationsNetwork.UserData.Service.MetricsService;
@@ -99,6 +103,7 @@ public class UserInfoController {
     private final ExternalDatasetLinkService externalDatasetLinkService;
     private final ResearchExportService researchExportService;
     private final StaffOperationEventService staffOperationEventService;
+    private final EducatorService educatorService;
 
     @GetMapping("/getUser/{id}")
     public ResponseEntity<User> getUser(@PathVariable String id) {
@@ -1047,6 +1052,147 @@ public class UserInfoController {
             return ResponseEntity.badRequest().body(e.getMessage());
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body("Error updating service-hour request URL");
+        }
+    }
+
+    @GetMapping("/staff/educators")
+    public ResponseEntity<List<Educator>> getEducatorsForStaff(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestParam(value = "organizationType", required = false) String organizationType,
+            @RequestParam(value = "active", required = false) Boolean active,
+            @RequestParam(value = "organizationName", required = false) String organizationName,
+            @RequestParam(value = "search", required = false) String search
+    ) {
+        try {
+            authService.requireStaff(authorizationHeader);
+            return ResponseEntity.ok(educatorService.getEducators(organizationType, active, organizationName, search));
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @GetMapping("/staff/educators/totals")
+    public ResponseEntity<EducatorTotalsDTO> getEducatorTotalsForStaff(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader
+    ) {
+        try {
+            authService.requireStaff(authorizationHeader);
+            return ResponseEntity.ok(educatorService.getEducatorTotals());
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @GetMapping("/staff/educators/{educatorId}")
+    public ResponseEntity<Educator> getEducatorForStaff(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @PathVariable String educatorId
+    ) {
+        try {
+            authService.requireStaff(authorizationHeader);
+            Educator educator = educatorService.getEducator(educatorId);
+            if (educator == null) {
+                return ResponseEntity.notFound().build();
+            }
+            return ResponseEntity.ok(educator);
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @PostMapping("/staff/educators")
+    public ResponseEntity<String> createEducatorForStaff(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestBody EducatorDTO dto
+    ) {
+        try {
+            authService.requireStaff(authorizationHeader);
+            return ResponseEntity.ok(educatorService.createEducator(dto));
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Error creating educator");
+        }
+    }
+
+    @PatchMapping("/staff/educators/{educatorId}")
+    public ResponseEntity<String> updateEducatorForStaff(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @PathVariable String educatorId,
+            @RequestBody EducatorDTO dto
+    ) {
+        try {
+            authService.requireStaff(authorizationHeader);
+            educatorService.updateEducator(educatorId, dto);
+            return ResponseEntity.ok("Updated");
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Error updating educator");
+        }
+    }
+
+    @PatchMapping("/staff/educators/{educatorId}/activate")
+    public ResponseEntity<String> activateEducatorForStaff(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @PathVariable String educatorId
+    ) {
+        try {
+            authService.requireStaff(authorizationHeader);
+            educatorService.activateEducator(educatorId);
+            return ResponseEntity.ok("Activated");
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Error activating educator");
+        }
+    }
+
+    @PatchMapping("/staff/educators/{educatorId}/deactivate")
+    public ResponseEntity<String> deactivateEducatorForStaff(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @PathVariable String educatorId
+    ) {
+        try {
+            authService.requireStaff(authorizationHeader);
+            educatorService.deactivateEducator(educatorId);
+            return ResponseEntity.ok("Deactivated");
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Error deactivating educator");
         }
     }
 

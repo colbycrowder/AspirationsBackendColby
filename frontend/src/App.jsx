@@ -4,6 +4,7 @@ import { useAuth } from "./auth/AuthContext.jsx";
 import { AttendanceManagement } from "./components/AttendanceManagement.jsx";
 import { CredentialManagement } from "./components/CredentialManagement.jsx";
 import { CredentialsPage } from "./components/CredentialsPage.jsx";
+import { EducatorManagement } from "./components/EducatorManagement.jsx";
 import { NotificationsPage } from "./components/NotificationsPage.jsx";
 import { OperationsReporting } from "./components/OperationsReporting.jsx";
 import { PilotReportingDashboard } from "./components/PilotReportingDashboard.jsx";
@@ -43,6 +44,7 @@ const staffRoutes = [
   { path: "/staff/rwd-management", label: "RWD Management", title: "RWD Management", protected: true, staff: true },
   { path: "/staff/attendance-management", label: "Attendance Management", title: "Attendance Management", protected: true, staff: true },
   { path: "/staff/service-hour-management", label: "Service Hour Management", title: "Service Hour Management", protected: true, staff: true },
+  { path: "/staff/educators", label: "Educator Management", title: "Educator Management", protected: true, staff: true },
   { path: "/staff/operations-reporting", label: "Operations Reporting", title: "Operations Reporting", protected: true, staff: true },
   { path: "/staff/reporting", label: "Reporting", title: "Reporting", protected: true, staff: true },
   { path: "/staff/metrics", label: "Metrics", title: "Metrics", protected: true, staff: true },
@@ -134,6 +136,11 @@ const pageDetails = {
     eyebrow: "Staff/Admin",
     description: "Future service-hour review workflow.",
     items: ["Create or review records", "Configure request URL", "No Google Form sync yet"],
+  },
+  "/staff/educators": {
+    eyebrow: "Staff/Admin",
+    description: "Staff-managed educator directory and relationship-management layer.",
+    items: ["Create educator records", "Update contact details", "Activate or deactivate educator relationships"],
   },
   "/staff/metrics": {
     eyebrow: "Staff/Admin",
@@ -262,6 +269,8 @@ function RouteContent({ route, detail, navigate }) {
             <AttendanceManagement />
           ) : route.path === "/staff/service-hour-management" ? (
             <ServiceHoursManagement />
+          ) : route.path === "/staff/educators" ? (
+            <EducatorManagement />
           ) : route.path === "/staff/operations-reporting" ? (
             <OperationsReporting />
           ) : route.path === "/staff/reporting" ? (
