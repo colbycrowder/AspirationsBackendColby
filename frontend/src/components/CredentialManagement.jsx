@@ -5,6 +5,7 @@ import {
   createStaffCredentialDefinition,
   fetchStaffCredentialDefinitions,
   fetchStaffCredentialTotals,
+  fetchStaffPilotReporting,
   restoreStaffCredentialDefinition,
   updateStaffCredentialDefinition,
 } from "../api.js";
@@ -22,24 +23,61 @@ const emptyDefinition = {
   requirementText: "",
 };
 const emptyAward = { userUID: "", credentialID: "" };
+const emptyDetailForm = {
+  credentialName: "",
+  description: "",
+  icon: "",
+  category: "",
+  active: true,
+  programIds: "",
+  requirementText: "",
+};
 
 export function CredentialManagement() {
   const { user } = useAuth();
   const [filters, setFilters] = useState(emptyFilters);
   const [definitions, setDefinitions] = useState([]);
   const [totals, setTotals] = useState({});
+  const [pilotReport, setPilotReport] = useState({});
   const [definitionForm, setDefinitionForm] = useState(emptyDefinition);
   const [awardForm, setAwardForm] = useState(emptyAward);
   const [selectedId, setSelectedId] = useState("");
+  const [detailForm, setDetailForm] = useState(emptyDetailForm);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
+  const selectedDefinition = definitions.find((definition) => getCredentialId(definition) === selectedId);
+  const credentialParticipationPercentage = pilotReport?.participation?.credentialParticipationPercentage;
+  const totalCredentialsAwarded =
+    totals.totalEarnedCredentials ?? pilotReport?.credentials?.totalCredentialsEarned ?? 0;
+  const awardedByCategory = hasEntries(totals.earnedCredentialsByCategory)
+    ? totals.earnedCredentialsByCategory
+    : pilotReport?.credentials?.credentialsByCategory;
+  const awardsByProgram = getAwardsByProgram(pilotReport?.programs);
+
   useEffect(() => {
     loadCredentials();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
+
+  useEffect(() => {
+    if (!selectedDefinition) {
+      setDetailForm(emptyDetailForm);
+      return;
+    }
+
+    setDetailForm({
+      credentialName: selectedDefinition.credentialName || "",
+      description: selectedDefinition.description || "",
+      icon: selectedDefinition.icon || "",
+      category: selectedDefinition.category || "",
+      active: selectedDefinition.active !== false,
+      programIds: formatProgramIds(selectedDefinition.programIds),
+      requirementText: selectedDefinition.requirementText || "",
+    });
+  }, [selectedDefinition]);
 
   async function loadCredentials(nextFilters = filters) {
     setLoading(true);
@@ -47,16 +85,19 @@ export function CredentialManagement() {
 
     try {
       const clean = cleanFilters(nextFilters);
-      const [definitionData, totalData] = await Promise.all([
+      const [definitionData, totalData, reportData] = await Promise.all([
         fetchStaffCredentialDefinitions(user, clean),
         fetchStaffCredentialTotals(user, clean),
+        fetchStaffPilotReporting(user),
       ]);
       setDefinitions(definitionData);
       setTotals(totalData);
+      setPilotReport(reportData);
     } catch (nextError) {
       setError(getStaffPageError(nextError));
       setDefinitions([]);
       setTotals({});
+      setPilotReport({});
     } finally {
       setLoading(false);
     }
@@ -99,6 +140,7 @@ export function CredentialManagement() {
       });
       setMessage(`Credential awarded: ${earnedCredentialID}`);
       setAwardForm(emptyAward);
+      await loadCredentials();
     } catch (nextError) {
       setError(getStaffPageError(nextError));
     } finally {
@@ -150,6 +192,29 @@ export function CredentialManagement() {
     }
   }
 
+  async function handleDetailSubmit(event) {
+    event.preventDefault();
+
+    if (!selectedDefinition) {
+      return;
+    }
+
+    const credentialID = getCredentialId(selectedDefinition);
+    setBusy(credentialID);
+    setMessage("");
+    setError("");
+
+    try {
+      await updateStaffCredentialDefinition(user, credentialID, buildDefinitionPayload(detailForm));
+      setMessage("Credential definition updated.");
+      await loadCredentials();
+    } catch (nextError) {
+      setError(getStaffPageError(nextError));
+    } finally {
+      setBusy("");
+    }
+  }
+
   if (loading) {
     return <StaffState title="Loading credentials" message="Retrieving credential definitions and totals." />;
   }
@@ -170,9 +235,16 @@ export function CredentialManagement() {
           { label: "Definitions", value: totals.totalDefinitions ?? definitions.length },
           { label: "Active", value: totals.activeDefinitions ?? 0 },
           { label: "Archived", value: totals.archivedDefinitions ?? 0 },
-          { label: "Earned Credentials", value: totals.totalEarnedCredentials ?? 0 },
+          { label: "Credentials Awarded", value: totalCredentialsAwarded },
+          { label: "Credential Participation", value: formatPercent(credentialParticipationPercentage) },
         ]}
       />
+
+      <section className="staff-management-grid">
+        <GroupedCountPanel title="Definitions By Category" values={totals.definitionsByCategory} />
+        <GroupedCountPanel title="Credentials Awarded By Category" values={awardedByCategory} />
+        <GroupedCountPanel title="Credential Awards By Program" values={awardsByProgram} />
+      </section>
 
       <section className="staff-management-grid">
         <div className="dashboard-section">
@@ -208,6 +280,9 @@ export function CredentialManagement() {
                     <button className="text-action" disabled={busy === credentialID} type="button" onClick={() => handleRename(definition)}>
                       Rename
                     </button>
+                    <button className="text-action" disabled={busy === credentialID} type="button" onClick={() => setSelectedId(credentialID)}>
+                      View Detail
+                    </button>
                     <button className="text-action" disabled={busy === credentialID || !definition.active} type="button" onClick={() => handleActiveToggle(definition, false)}>
                       Archive
                     </button>
@@ -219,6 +294,14 @@ export function CredentialManagement() {
               );
             })}
           </div>
+          <CredentialDetailPanel
+            busy={busy === selectedId}
+            definition={selectedDefinition}
+            form={detailForm}
+            onActiveToggle={handleActiveToggle}
+            onSubmit={handleDetailSubmit}
+            setForm={setDetailForm}
+          />
         </div>
       </section>
     </div>
@@ -264,6 +347,87 @@ function AwardForm({ form, setForm, onSubmit, busy }) {
   );
 }
 
+function CredentialDetailPanel({ busy, definition, form, onActiveToggle, onSubmit, setForm }) {
+  if (!definition) {
+    return (
+      <div className="staff-detail-panel">
+        <h3>Credential Detail</h3>
+        <p>Select a credential definition to view details or edit staff-managed catalog fields.</p>
+      </div>
+    );
+  }
+
+  const credentialID = getCredentialId(definition);
+
+  return (
+    <div className="staff-detail-panel">
+      <div className="section-header">
+        <div>
+          <h3>Credential Detail</h3>
+          <p>{credentialID}</p>
+        </div>
+        <span className="status-pill">{definition.active ? "Active" : "Archived"}</span>
+      </div>
+
+      <dl className="staff-detail-list">
+        <div>
+          <dt>Category</dt>
+          <dd>{definition.category || "Not set"}</dd>
+        </div>
+        <div>
+          <dt>Programs</dt>
+          <dd>{formatProgramIds(definition.programIds) || "No programs connected"}</dd>
+        </div>
+        <div>
+          <dt>Requirement</dt>
+          <dd>{definition.requirementText || "No requirement text provided"}</dd>
+        </div>
+      </dl>
+
+      <form className="compact-form" onSubmit={onSubmit}>
+        <input required placeholder="Credential name" value={form.credentialName} onChange={(event) => setForm({ ...form, credentialName: event.target.value })} />
+        <input placeholder="Category" value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })} />
+        <input placeholder="Icon" value={form.icon} onChange={(event) => setForm({ ...form, icon: event.target.value })} />
+        <input placeholder="Program IDs, comma-separated" value={form.programIds} onChange={(event) => setForm({ ...form, programIds: event.target.value })} />
+        <textarea placeholder="Description" rows="3" value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} />
+        <textarea placeholder="Requirement text" rows="3" value={form.requirementText} onChange={(event) => setForm({ ...form, requirementText: event.target.value })} />
+        <button className="primary-action" disabled={busy} type="submit">{busy ? "Saving..." : "Save Credential"}</button>
+      </form>
+
+      <div className="staff-inline-actions">
+        <button className="text-action" disabled={busy || !definition.active} type="button" onClick={() => onActiveToggle(definition, false)}>
+          Archive Credential
+        </button>
+        <button className="text-action" disabled={busy || definition.active} type="button" onClick={() => onActiveToggle(definition, true)}>
+          Restore Credential
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function GroupedCountPanel({ title, values = {} }) {
+  const rows = Object.entries(values || {});
+
+  return (
+    <section className="dashboard-section">
+      <h3>{title}</h3>
+      {rows.length === 0 ? (
+        <p>No data available yet.</p>
+      ) : (
+        <div className="staff-mini-table">
+          {rows.map(([label, count]) => (
+            <div key={label}>
+              <span>{label || "Uncategorized"}</span>
+              <strong>{count ?? 0}</strong>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 function buildDefinitionPayload(form) {
   return {
     credentialName: form.credentialName.trim(),
@@ -282,4 +446,36 @@ function cleanFilters(filters) {
 
 function getCredentialId(definition) {
   return getRecordId(definition, ["credentialID", "credentialId"]);
+}
+
+function formatProgramIds(programIds) {
+  if (Array.isArray(programIds)) {
+    return programIds.join(", ");
+  }
+
+  return programIds || "";
+}
+
+function getAwardsByProgram(programs = []) {
+  if (!Array.isArray(programs)) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    programs
+      .filter((program) => Number(program.credentialCompletions ?? 0) > 0)
+      .map((program) => [
+        program.programName || program.programId || "Untitled program",
+        program.credentialCompletions ?? 0,
+      ])
+  );
+}
+
+function hasEntries(value) {
+  return value && Object.keys(value).length > 0;
+}
+
+function formatPercent(value) {
+  const numericValue = Number(value ?? 0);
+  return `${Number.isFinite(numericValue) ? numericValue.toFixed(1) : "0.0"}%`;
 }
