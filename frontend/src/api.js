@@ -305,6 +305,12 @@ export async function fetchStaffPilotReadiness(user) {
   return readiness && typeof readiness === "object" ? readiness : {};
 }
 
+export async function fetchStaffPilotMetrics(user) {
+  const response = await fetchStaffEndpoint(user, "/api/staff/pilot/metrics");
+  const metrics = await response.json();
+  return metrics && typeof metrics === "object" ? metrics : {};
+}
+
 export async function fetchStaffYouthUsers(user) {
   const response = await fetchStaffEndpoint(user, "/api/staff/users/youth");
   const users = await response.json();
