@@ -5,6 +5,7 @@ import { AttendanceManagement } from "./components/AttendanceManagement.jsx";
 import { CredentialManagement } from "./components/CredentialManagement.jsx";
 import { CredentialsPage } from "./components/CredentialsPage.jsx";
 import { EducatorManagement } from "./components/EducatorManagement.jsx";
+import { GovernmentOrganizationManagement } from "./components/GovernmentOrganizationManagement.jsx";
 import { NotificationsPage } from "./components/NotificationsPage.jsx";
 import { OperationsReporting } from "./components/OperationsReporting.jsx";
 import { PartnerOrganizationManagement } from "./components/PartnerOrganizationManagement.jsx";
@@ -47,6 +48,7 @@ const staffRoutes = [
   { path: "/staff/service-hour-management", label: "Service Hour Management", title: "Service Hour Management", protected: true, staff: true },
   { path: "/staff/educators", label: "Educator Management", title: "Educator Management", protected: true, staff: true },
   { path: "/staff/partners", label: "Partner Management", title: "Partner Management", protected: true, staff: true },
+  { path: "/staff/government", label: "Government Management", title: "Government Management", protected: true, staff: true },
   { path: "/staff/operations-reporting", label: "Operations Reporting", title: "Operations Reporting", protected: true, staff: true },
   { path: "/staff/reporting", label: "Reporting", title: "Reporting", protected: true, staff: true },
   { path: "/staff/metrics", label: "Metrics", title: "Metrics", protected: true, staff: true },
@@ -148,6 +150,11 @@ const pageDetails = {
     eyebrow: "Staff/Admin",
     description: "Staff-managed partner organization directory and relationship-management layer.",
     items: ["Create partner organizations", "Update contact details", "Activate or deactivate partner relationships"],
+  },
+  "/staff/government": {
+    eyebrow: "Staff/Admin",
+    description: "Staff-managed government and public-sector organization relationship layer.",
+    items: ["Create government organization records", "Track workforce and credential partner flags", "Activate or deactivate public-sector relationships"],
   },
   "/staff/metrics": {
     eyebrow: "Staff/Admin",
@@ -280,6 +287,8 @@ function RouteContent({ route, detail, navigate }) {
             <EducatorManagement />
           ) : route.path === "/staff/partners" ? (
             <PartnerOrganizationManagement />
+          ) : route.path === "/staff/government" ? (
+            <GovernmentOrganizationManagement />
           ) : route.path === "/staff/operations-reporting" ? (
             <OperationsReporting />
           ) : route.path === "/staff/reporting" ? (

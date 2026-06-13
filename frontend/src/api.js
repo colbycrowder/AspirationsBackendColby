@@ -1050,6 +1050,111 @@ export async function deactivateStaffPartnerOrganization(user, partnerOrganizati
   return response.text();
 }
 
+export async function fetchStaffGovernmentOrganizations(user, filters = {}) {
+  const params = new URLSearchParams();
+  if (filters.governmentLevel) {
+    params.set("governmentLevel", filters.governmentLevel);
+  }
+  if (filters.organizationType) {
+    params.set("organizationType", filters.organizationType);
+  }
+  if (filters.active !== undefined && filters.active !== "") {
+    params.set("active", String(filters.active));
+  }
+  if (filters.workforcePartner !== undefined && filters.workforcePartner !== "") {
+    params.set("workforcePartner", String(filters.workforcePartner));
+  }
+  if (filters.credentialPartner !== undefined && filters.credentialPartner !== "") {
+    params.set("credentialPartner", String(filters.credentialPartner));
+  }
+  if (filters.organizationName) {
+    params.set("organizationName", filters.organizationName);
+  }
+
+  const query = params.toString();
+  const response = await fetchStaffEndpoint(user, `/api/staff/government-organizations${query ? `?${query}` : ""}`);
+  const organizations = await response.json();
+  return Array.isArray(organizations) ? organizations : [];
+}
+
+export async function fetchStaffGovernmentOrganization(user, governmentOrganizationId) {
+  if (!governmentOrganizationId) {
+    throw new Error("Government organization selection is required.");
+  }
+
+  const response = await fetchStaffEndpoint(
+    user,
+    `/api/staff/government-organizations/${encodeURIComponent(governmentOrganizationId)}`
+  );
+  return response.json();
+}
+
+export async function fetchStaffGovernmentOrganizationTotals(user) {
+  const response = await fetchStaffEndpoint(user, "/api/staff/government-organizations/totals");
+  const totals = await response.json();
+  return totals && typeof totals === "object" ? totals : {};
+}
+
+export async function createStaffGovernmentOrganization(user, organization) {
+  const response = await fetchStaffEndpoint(user, "/api/staff/government-organizations", {
+    body: JSON.stringify(organization),
+    headers: {
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+  });
+
+  return response.text();
+}
+
+export async function updateStaffGovernmentOrganization(user, governmentOrganizationId, updates) {
+  if (!governmentOrganizationId) {
+    throw new Error("Government organization selection is required.");
+  }
+
+  const response = await fetchStaffEndpoint(
+    user,
+    `/api/staff/government-organizations/${encodeURIComponent(governmentOrganizationId)}`,
+    {
+      body: JSON.stringify(updates),
+      headers: {
+        "Content-Type": "application/json",
+      },
+      method: "PATCH",
+    }
+  );
+
+  return response.text();
+}
+
+export async function activateStaffGovernmentOrganization(user, governmentOrganizationId) {
+  if (!governmentOrganizationId) {
+    throw new Error("Government organization selection is required.");
+  }
+
+  const response = await fetchStaffEndpoint(
+    user,
+    `/api/staff/government-organizations/${encodeURIComponent(governmentOrganizationId)}/activate`,
+    { method: "PATCH" }
+  );
+
+  return response.text();
+}
+
+export async function deactivateStaffGovernmentOrganization(user, governmentOrganizationId) {
+  if (!governmentOrganizationId) {
+    throw new Error("Government organization selection is required.");
+  }
+
+  const response = await fetchStaffEndpoint(
+    user,
+    `/api/staff/government-organizations/${encodeURIComponent(governmentOrganizationId)}/deactivate`,
+    { method: "PATCH" }
+  );
+
+  return response.text();
+}
+
 async function fetchStaffEndpoint(user, path, options = {}) {
   if (!user) {
     throw new ApiAccessError("Sign in before opening staff/admin tools.", 401);

@@ -9,6 +9,8 @@ import com.AspirationsNetwork.UserData.DTO.CredentialTotalsDTO;
 import com.AspirationsNetwork.UserData.DTO.EducatorDTO;
 import com.AspirationsNetwork.UserData.DTO.EducatorTotalsDTO;
 import com.AspirationsNetwork.UserData.DTO.ExternalDatasetDTO;
+import com.AspirationsNetwork.UserData.DTO.GovernmentOrganizationDTO;
+import com.AspirationsNetwork.UserData.DTO.GovernmentOrganizationTotalsDTO;
 import com.AspirationsNetwork.UserData.DTO.ParticipantExternalLinkDTO;
 import com.AspirationsNetwork.UserData.DTO.PartnerOrganizationDTO;
 import com.AspirationsNetwork.UserData.DTO.PartnerOrganizationTotalsDTO;
@@ -41,6 +43,7 @@ import com.AspirationsNetwork.UserData.Models.CredentialDefinition;
 import com.AspirationsNetwork.UserData.Models.DiscussionPost;
 import com.AspirationsNetwork.UserData.Models.Educator;
 import com.AspirationsNetwork.UserData.Models.ExternalDataset;
+import com.AspirationsNetwork.UserData.Models.GovernmentOrganization;
 import com.AspirationsNetwork.UserData.Models.Notification;
 import com.AspirationsNetwork.UserData.Models.ParticipantExternalLink;
 import com.AspirationsNetwork.UserData.Models.PartnerOrganization;
@@ -59,6 +62,7 @@ import com.AspirationsNetwork.UserData.Service.DiscussionPostService;
 import com.AspirationsNetwork.UserData.Service.EducatorService;
 import com.AspirationsNetwork.UserData.Service.ExternalDatasetLinkService;
 import com.AspirationsNetwork.UserData.Service.ForbiddenAccessException;
+import com.AspirationsNetwork.UserData.Service.GovernmentOrganizationService;
 import com.AspirationsNetwork.UserData.Service.MetricsService;
 import com.AspirationsNetwork.UserData.Service.NotificationService;
 import com.AspirationsNetwork.UserData.Service.PartnerOrganizationService;
@@ -109,6 +113,7 @@ public class UserInfoController {
     private final StaffOperationEventService staffOperationEventService;
     private final EducatorService educatorService;
     private final PartnerOrganizationService partnerOrganizationService;
+    private final GovernmentOrganizationService governmentOrganizationService;
 
     @GetMapping("/getUser/{id}")
     public ResponseEntity<User> getUser(@PathVariable String id) {
@@ -1338,6 +1343,156 @@ public class UserInfoController {
             return ResponseEntity.badRequest().body(e.getMessage());
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body("Error deactivating partner organization");
+        }
+    }
+
+    @GetMapping("/staff/government-organizations")
+    public ResponseEntity<List<GovernmentOrganization>> getGovernmentOrganizationsForStaff(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestParam(value = "governmentLevel", required = false) String governmentLevel,
+            @RequestParam(value = "organizationType", required = false) String organizationType,
+            @RequestParam(value = "active", required = false) Boolean active,
+            @RequestParam(value = "workforcePartner", required = false) Boolean workforcePartner,
+            @RequestParam(value = "credentialPartner", required = false) Boolean credentialPartner,
+            @RequestParam(value = "organizationName", required = false) String organizationName
+    ) {
+        try {
+            authService.requireStaff(authorizationHeader);
+            return ResponseEntity.ok(governmentOrganizationService.getGovernmentOrganizations(
+                    governmentLevel,
+                    organizationType,
+                    active,
+                    workforcePartner,
+                    credentialPartner,
+                    organizationName
+            ));
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @GetMapping("/staff/government-organizations/totals")
+    public ResponseEntity<GovernmentOrganizationTotalsDTO> getGovernmentOrganizationTotalsForStaff(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader
+    ) {
+        try {
+            authService.requireStaff(authorizationHeader);
+            return ResponseEntity.ok(governmentOrganizationService.getGovernmentOrganizationTotals());
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @GetMapping("/staff/government-organizations/{governmentOrganizationId}")
+    public ResponseEntity<GovernmentOrganization> getGovernmentOrganizationForStaff(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @PathVariable String governmentOrganizationId
+    ) {
+        try {
+            authService.requireStaff(authorizationHeader);
+            GovernmentOrganization organization = governmentOrganizationService.getGovernmentOrganization(governmentOrganizationId);
+            if (organization == null) {
+                return ResponseEntity.notFound().build();
+            }
+            return ResponseEntity.ok(organization);
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @PostMapping("/staff/government-organizations")
+    public ResponseEntity<String> createGovernmentOrganizationForStaff(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestBody GovernmentOrganizationDTO dto
+    ) {
+        try {
+            authService.requireStaff(authorizationHeader);
+            return ResponseEntity.ok(governmentOrganizationService.createGovernmentOrganization(dto));
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Error creating government organization");
+        }
+    }
+
+    @PatchMapping("/staff/government-organizations/{governmentOrganizationId}")
+    public ResponseEntity<String> updateGovernmentOrganizationForStaff(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @PathVariable String governmentOrganizationId,
+            @RequestBody GovernmentOrganizationDTO dto
+    ) {
+        try {
+            authService.requireStaff(authorizationHeader);
+            governmentOrganizationService.updateGovernmentOrganization(governmentOrganizationId, dto);
+            return ResponseEntity.ok("Updated");
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Error updating government organization");
+        }
+    }
+
+    @PatchMapping("/staff/government-organizations/{governmentOrganizationId}/activate")
+    public ResponseEntity<String> activateGovernmentOrganizationForStaff(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @PathVariable String governmentOrganizationId
+    ) {
+        try {
+            authService.requireStaff(authorizationHeader);
+            governmentOrganizationService.activateGovernmentOrganization(governmentOrganizationId);
+            return ResponseEntity.ok("Activated");
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Error activating government organization");
+        }
+    }
+
+    @PatchMapping("/staff/government-organizations/{governmentOrganizationId}/deactivate")
+    public ResponseEntity<String> deactivateGovernmentOrganizationForStaff(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @PathVariable String governmentOrganizationId
+    ) {
+        try {
+            authService.requireStaff(authorizationHeader);
+            governmentOrganizationService.deactivateGovernmentOrganization(governmentOrganizationId);
+            return ResponseEntity.ok("Deactivated");
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Error deactivating government organization");
         }
     }
 

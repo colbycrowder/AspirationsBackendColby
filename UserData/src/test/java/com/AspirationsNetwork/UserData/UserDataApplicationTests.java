@@ -8,6 +8,7 @@ import com.AspirationsNetwork.UserData.Service.DashboardService;
 import com.AspirationsNetwork.UserData.Service.DiscussionPostService;
 import com.AspirationsNetwork.UserData.Service.EducatorService;
 import com.AspirationsNetwork.UserData.Service.ExternalDatasetLinkService;
+import com.AspirationsNetwork.UserData.Service.GovernmentOrganizationService;
 import com.AspirationsNetwork.UserData.Service.MetricsService;
 import com.AspirationsNetwork.UserData.Service.NotificationService;
 import com.AspirationsNetwork.UserData.Service.ParticipantIdService;
@@ -60,6 +61,7 @@ class UserDataApplicationTests {
 			DashboardService.class,
 			EducatorService.class,
 			ExternalDatasetLinkService.class,
+			GovernmentOrganizationService.class,
 			MetricsService.class,
 			NotificationService.class,
 			ParticipantIdService.class,

@@ -10,6 +10,8 @@ import com.AspirationsNetwork.UserData.DTO.EarnedCredentialDisplayDTO;
 import com.AspirationsNetwork.UserData.DTO.EducatorDTO;
 import com.AspirationsNetwork.UserData.DTO.EducatorTotalsDTO;
 import com.AspirationsNetwork.UserData.DTO.ExternalDatasetDTO;
+import com.AspirationsNetwork.UserData.DTO.GovernmentOrganizationDTO;
+import com.AspirationsNetwork.UserData.DTO.GovernmentOrganizationTotalsDTO;
 import com.AspirationsNetwork.UserData.DTO.ParticipantExternalLinkDTO;
 import com.AspirationsNetwork.UserData.DTO.PartnerOrganizationDTO;
 import com.AspirationsNetwork.UserData.DTO.PartnerOrganizationTotalsDTO;
@@ -41,6 +43,7 @@ import com.AspirationsNetwork.UserData.Models.CredentialDefinition;
 import com.AspirationsNetwork.UserData.Models.DiscussionPost;
 import com.AspirationsNetwork.UserData.Models.Educator;
 import com.AspirationsNetwork.UserData.Models.ExternalDataset;
+import com.AspirationsNetwork.UserData.Models.GovernmentOrganization;
 import com.AspirationsNetwork.UserData.Models.Notification;
 import com.AspirationsNetwork.UserData.Models.ParticipantExternalLink;
 import com.AspirationsNetwork.UserData.Models.PartnerOrganization;
@@ -58,6 +61,7 @@ import com.AspirationsNetwork.UserData.Service.DiscussionPostService;
 import com.AspirationsNetwork.UserData.Service.EducatorService;
 import com.AspirationsNetwork.UserData.Service.ExternalDatasetLinkService;
 import com.AspirationsNetwork.UserData.Service.ForbiddenAccessException;
+import com.AspirationsNetwork.UserData.Service.GovernmentOrganizationService;
 import com.AspirationsNetwork.UserData.Service.MetricsService;
 import com.AspirationsNetwork.UserData.Service.NotificationService;
 import com.AspirationsNetwork.UserData.Service.PartnerOrganizationService;
@@ -113,6 +117,7 @@ class UserInfoControllerTest {
     private final StaffOperationEventService staffOperationEventService = mock(StaffOperationEventService.class);
     private final EducatorService educatorService = mock(EducatorService.class);
     private final PartnerOrganizationService partnerOrganizationService = mock(PartnerOrganizationService.class);
+    private final GovernmentOrganizationService governmentOrganizationService = mock(GovernmentOrganizationService.class);
     private final UserInfoController controller = new UserInfoController(
             userInfoService,
             discussionPostService,
@@ -133,7 +138,8 @@ class UserInfoControllerTest {
             researchExportService,
             staffOperationEventService,
             educatorService,
-            partnerOrganizationService
+            partnerOrganizationService,
+            governmentOrganizationService
     );
 
     @Test
@@ -1842,6 +1848,132 @@ class UserInfoControllerTest {
         assertNull(response.getBody());
     }
 
+    @Test
+    void createGovernmentOrganizationReturnsOrganizationIdForStaffToken() throws Exception {
+        GovernmentOrganizationDTO dto = governmentOrganizationDto();
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+        when(governmentOrganizationService.createGovernmentOrganization(dto)).thenReturn("government-123");
+
+        ResponseEntity<String> response = controller.createGovernmentOrganizationForStaff("Bearer staff-token", dto);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("government-123", response.getBody());
+        verify(governmentOrganizationService).createGovernmentOrganization(dto);
+    }
+
+    @Test
+    void getGovernmentOrganizationsForStaffPassesFiltersToService() throws Exception {
+        GovernmentOrganization organization = governmentOrganization("government-123");
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+        when(governmentOrganizationService.getGovernmentOrganizations("municipal", "city_government", true, true, false, "St. Louis"))
+                .thenReturn(List.of(organization));
+
+        ResponseEntity<List<GovernmentOrganization>> response = controller.getGovernmentOrganizationsForStaff(
+                "Bearer staff-token",
+                "municipal",
+                "city_government",
+                true,
+                true,
+                false,
+                "St. Louis"
+        );
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(1, response.getBody().size());
+        assertEquals("government-123", response.getBody().get(0).getGovernmentOrganizationId());
+    }
+
+    @Test
+    void getGovernmentOrganizationForStaffReturnsDetail() throws Exception {
+        GovernmentOrganization organization = governmentOrganization("government-123");
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+        when(governmentOrganizationService.getGovernmentOrganization("government-123")).thenReturn(organization);
+
+        ResponseEntity<GovernmentOrganization> response = controller.getGovernmentOrganizationForStaff("Bearer staff-token", "government-123");
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("government-123", response.getBody().getGovernmentOrganizationId());
+    }
+
+    @Test
+    void getMissingGovernmentOrganizationForStaffReturnsNotFound() throws Exception {
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+        when(governmentOrganizationService.getGovernmentOrganization("missing-government")).thenReturn(null);
+
+        ResponseEntity<GovernmentOrganization> response = controller.getGovernmentOrganizationForStaff("Bearer staff-token", "missing-government");
+
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+        assertNull(response.getBody());
+    }
+
+    @Test
+    void updateGovernmentOrganizationForStaffReturnsUpdated() throws Exception {
+        GovernmentOrganizationDTO dto = governmentOrganizationDto();
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+
+        ResponseEntity<String> response = controller.updateGovernmentOrganizationForStaff("Bearer staff-token", "government-123", dto);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("Updated", response.getBody());
+        verify(governmentOrganizationService).updateGovernmentOrganization("government-123", dto);
+    }
+
+    @Test
+    void activateAndDeactivateGovernmentOrganizationForStaffRequireStaffToken() throws Exception {
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+
+        ResponseEntity<String> activateResponse = controller.activateGovernmentOrganizationForStaff("Bearer staff-token", "government-123");
+        ResponseEntity<String> deactivateResponse = controller.deactivateGovernmentOrganizationForStaff("Bearer staff-token", "government-123");
+
+        assertEquals(HttpStatus.OK, activateResponse.getStatusCode());
+        assertEquals("Activated", activateResponse.getBody());
+        assertEquals(HttpStatus.OK, deactivateResponse.getStatusCode());
+        assertEquals("Deactivated", deactivateResponse.getBody());
+        verify(governmentOrganizationService).activateGovernmentOrganization("government-123");
+        verify(governmentOrganizationService).deactivateGovernmentOrganization("government-123");
+    }
+
+    @Test
+    void getGovernmentOrganizationTotalsForStaffReturnsTotals() throws Exception {
+        GovernmentOrganizationTotalsDTO totals = new GovernmentOrganizationTotalsDTO();
+        totals.setTotalGovernmentOrganizations(2);
+        totals.setActiveGovernmentOrganizations(1);
+        totals.setInactiveGovernmentOrganizations(1);
+        totals.setWorkforcePartners(1);
+        totals.setCredentialPartners(1);
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+        when(governmentOrganizationService.getGovernmentOrganizationTotals()).thenReturn(totals);
+
+        ResponseEntity<GovernmentOrganizationTotalsDTO> response = controller.getGovernmentOrganizationTotalsForStaff("Bearer staff-token");
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(2, response.getBody().getTotalGovernmentOrganizations());
+        assertEquals(1, response.getBody().getActiveGovernmentOrganizations());
+        assertEquals(1, response.getBody().getInactiveGovernmentOrganizations());
+        assertEquals(1, response.getBody().getWorkforcePartners());
+        assertEquals(1, response.getBody().getCredentialPartners());
+    }
+
+    @Test
+    void getGovernmentOrganizationsForStaffRejectsYouthToken() throws Exception {
+        doThrow(new ForbiddenAccessException("Staff role is required"))
+                .when(authService)
+                .requireStaff("Bearer youth-token");
+
+        ResponseEntity<List<GovernmentOrganization>> response = controller.getGovernmentOrganizationsForStaff(
+                "Bearer youth-token",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+
+        assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
+        assertNull(response.getBody());
+    }
+
     private EducatorDTO educatorDto() {
         EducatorDTO dto = new EducatorDTO();
         dto.setFirstName("Jane");
@@ -1891,5 +2023,38 @@ class UserInfoControllerTest {
         partner.setPrimaryContactEmail("jordan@example.org");
         partner.setActive(true);
         return partner;
+    }
+
+    private GovernmentOrganizationDTO governmentOrganizationDto() {
+        GovernmentOrganizationDTO dto = new GovernmentOrganizationDTO();
+        dto.setOrganizationName("City of St. Louis");
+        dto.setGovernmentLevel("municipal");
+        dto.setOrganizationType("city_government");
+        dto.setWebsite("https://www.stlouis-mo.gov");
+        dto.setPrimaryContactName("Jordan Lee");
+        dto.setPrimaryContactTitle("Workforce Coordinator");
+        dto.setPrimaryContactEmail("jordan@example.gov");
+        dto.setPrimaryContactPhone("314-555-3434");
+        dto.setActive(true);
+        dto.setWorkforcePartner(true);
+        dto.setCredentialPartner(false);
+        dto.setNotes("Future Ready public-sector partner");
+        return dto;
+    }
+
+    private GovernmentOrganization governmentOrganization(String governmentOrganizationId) {
+        GovernmentOrganization organization = new GovernmentOrganization();
+        organization.setGovernmentOrganizationId(governmentOrganizationId);
+        organization.setOrganizationName("City of St. Louis");
+        organization.setGovernmentLevel("municipal");
+        organization.setOrganizationType("city_government");
+        organization.setWebsite("https://www.stlouis-mo.gov");
+        organization.setPrimaryContactName("Jordan Lee");
+        organization.setPrimaryContactTitle("Workforce Coordinator");
+        organization.setPrimaryContactEmail("jordan@example.gov");
+        organization.setActive(true);
+        organization.setWorkforcePartner(true);
+        organization.setCredentialPartner(false);
+        return organization;
     }
 }
