@@ -13,6 +13,7 @@ import com.AspirationsNetwork.UserData.Service.MetricsService;
 import com.AspirationsNetwork.UserData.Service.NotificationService;
 import com.AspirationsNetwork.UserData.Service.ParticipantIdService;
 import com.AspirationsNetwork.UserData.Service.PartnerOrganizationService;
+import com.AspirationsNetwork.UserData.Service.PilotEvaluationService;
 import com.AspirationsNetwork.UserData.Service.PilotMetricsService;
 import com.AspirationsNetwork.UserData.Service.PilotReadinessService;
 import com.AspirationsNetwork.UserData.Service.PilotReportingService;
@@ -69,6 +70,7 @@ class UserDataApplicationTests {
 			NotificationService.class,
 			ParticipantIdService.class,
 			PartnerOrganizationService.class,
+			PilotEvaluationService.class,
 			PilotMetricsService.class,
 			PilotReadinessService.class,
 			PilotReportingService.class,

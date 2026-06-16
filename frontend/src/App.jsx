@@ -9,6 +9,7 @@ import { GovernmentOrganizationManagement } from "./components/GovernmentOrganiz
 import { NotificationsPage } from "./components/NotificationsPage.jsx";
 import { OperationsReporting } from "./components/OperationsReporting.jsx";
 import { PartnerOrganizationManagement } from "./components/PartnerOrganizationManagement.jsx";
+import { PilotEvaluationDashboard } from "./components/PilotEvaluationDashboard.jsx";
 import { PilotMetricsDashboard } from "./components/PilotMetricsDashboard.jsx";
 import { PilotReadinessDashboard } from "./components/PilotReadinessDashboard.jsx";
 import { PilotReportingDashboard } from "./components/PilotReportingDashboard.jsx";
@@ -55,6 +56,7 @@ const staffRoutes = [
   { path: "/staff/relationships", label: "Relationships", title: "Relationships", protected: true, staff: true },
   { path: "/staff/pilot-readiness", label: "Pilot Readiness", title: "Pilot Readiness", protected: true, staff: true },
   { path: "/staff/pilot-metrics", label: "Pilot Metrics", title: "Pilot Metrics", protected: true, staff: true },
+  { path: "/staff/pilot-evaluation", label: "Pilot Evaluation", title: "Pilot Evaluation", protected: true, staff: true },
   { path: "/staff/operations-reporting", label: "Operations Reporting", title: "Operations Reporting", protected: true, staff: true },
   { path: "/staff/reporting", label: "Reporting", title: "Reporting", protected: true, staff: true },
   { path: "/staff/metrics", label: "Metrics", title: "Metrics", protected: true, staff: true },
@@ -176,6 +178,11 @@ const pageDetails = {
     eyebrow: "Staff/Admin",
     description: "Centralized pilot data collection dashboard for staff measurement review.",
     items: ["Registration funnel", "Program engagement", "Credential engagement", "Service engagement", "Operations activity"],
+  },
+  "/staff/pilot-evaluation": {
+    eyebrow: "Staff/Admin",
+    description: "Outcome-oriented pilot evaluation dashboard for staff review.",
+    items: ["Executive summary", "Outcome scores", "Strengths", "Concerns", "Recommended actions"],
   },
   "/staff/metrics": {
     eyebrow: "Staff/Admin",
@@ -316,6 +323,8 @@ function RouteContent({ route, detail, navigate }) {
             <PilotReadinessDashboard />
           ) : route.path === "/staff/pilot-metrics" ? (
             <PilotMetricsDashboard />
+          ) : route.path === "/staff/pilot-evaluation" ? (
+            <PilotEvaluationDashboard />
           ) : route.path === "/staff/operations-reporting" ? (
             <OperationsReporting />
           ) : route.path === "/staff/reporting" ? (

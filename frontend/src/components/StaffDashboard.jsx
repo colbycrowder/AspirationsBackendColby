@@ -93,6 +93,7 @@ export function StaffDashboard({ metrics: providedMetrics, navigate }) {
             ["/staff/relationships", "Relationships"],
             ["/staff/pilot-readiness", "Pilot Readiness"],
             ["/staff/pilot-metrics", "Pilot Metrics"],
+            ["/staff/pilot-evaluation", "Pilot Evaluation"],
             ["/staff/reporting", "Reporting"],
             ["/staff/operations-reporting", "Operations Reporting"],
           ].map(([path, label]) => (

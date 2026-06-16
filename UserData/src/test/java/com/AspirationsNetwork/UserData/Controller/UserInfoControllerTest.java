@@ -17,6 +17,7 @@ import com.AspirationsNetwork.UserData.DTO.PartnerOrganizationDTO;
 import com.AspirationsNetwork.UserData.DTO.PartnerOrganizationTotalsDTO;
 import com.AspirationsNetwork.UserData.DTO.PlatformMetricsDTO;
 import com.AspirationsNetwork.UserData.DTO.PlatformEventRequestDTO;
+import com.AspirationsNetwork.UserData.DTO.PilotEvaluationDTO;
 import com.AspirationsNetwork.UserData.DTO.PilotMetricsDTO;
 import com.AspirationsNetwork.UserData.DTO.PilotReadinessDTO;
 import com.AspirationsNetwork.UserData.DTO.PilotReportingDTO;
@@ -70,6 +71,7 @@ import com.AspirationsNetwork.UserData.Service.GovernmentOrganizationService;
 import com.AspirationsNetwork.UserData.Service.MetricsService;
 import com.AspirationsNetwork.UserData.Service.NotificationService;
 import com.AspirationsNetwork.UserData.Service.PartnerOrganizationService;
+import com.AspirationsNetwork.UserData.Service.PilotEvaluationService;
 import com.AspirationsNetwork.UserData.Service.PilotMetricsService;
 import com.AspirationsNetwork.UserData.Service.PilotReadinessService;
 import com.AspirationsNetwork.UserData.Service.PilotReportingService;
@@ -129,6 +131,7 @@ class UserInfoControllerTest {
     private final StakeholderRelationshipNoteService stakeholderRelationshipNoteService = mock(StakeholderRelationshipNoteService.class);
     private final PilotReadinessService pilotReadinessService = mock(PilotReadinessService.class);
     private final PilotMetricsService pilotMetricsService = mock(PilotMetricsService.class);
+    private final PilotEvaluationService pilotEvaluationService = mock(PilotEvaluationService.class);
     private final UserInfoController controller = new UserInfoController(
             userInfoService,
             discussionPostService,
@@ -153,7 +156,8 @@ class UserInfoControllerTest {
             governmentOrganizationService,
             stakeholderRelationshipNoteService,
             pilotReadinessService,
-            pilotMetricsService
+            pilotMetricsService,
+            pilotEvaluationService
     );
 
     @Test
@@ -328,6 +332,34 @@ class UserInfoControllerTest {
         assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
         assertNull(response.getBody());
         verifyNoInteractions(pilotMetricsService);
+    }
+
+    @Test
+    void getStaffPilotEvaluationReturnsEvaluationForStaffToken() throws Exception {
+        PilotEvaluationDTO evaluation = new PilotEvaluationDTO();
+        evaluation.setOverallScore(88);
+        evaluation.setOverallStatus("green");
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("staff-123");
+        when(pilotEvaluationService.getPilotEvaluation()).thenReturn(evaluation);
+
+        ResponseEntity<PilotEvaluationDTO> response = controller.getStaffPilotEvaluation("Bearer staff-token");
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(88, response.getBody().getOverallScore());
+        assertEquals("green", response.getBody().getOverallStatus());
+    }
+
+    @Test
+    void getStaffPilotEvaluationRejectsYouthToken() throws Exception {
+        doThrow(new ForbiddenAccessException("Staff role is required"))
+                .when(authService)
+                .requireStaff("Bearer youth-token");
+
+        ResponseEntity<PilotEvaluationDTO> response = controller.getStaffPilotEvaluation("Bearer youth-token");
+
+        assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
+        assertNull(response.getBody());
+        verifyNoInteractions(pilotEvaluationService);
     }
 
     @Test

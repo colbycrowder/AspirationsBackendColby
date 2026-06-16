@@ -311,6 +311,12 @@ export async function fetchStaffPilotMetrics(user) {
   return metrics && typeof metrics === "object" ? metrics : {};
 }
 
+export async function fetchStaffPilotEvaluation(user) {
+  const response = await fetchStaffEndpoint(user, "/api/staff/pilot/evaluation");
+  const evaluation = await response.json();
+  return evaluation && typeof evaluation === "object" ? evaluation : {};
+}
+
 export async function fetchStaffYouthUsers(user) {
   const response = await fetchStaffEndpoint(user, "/api/staff/users/youth");
   const users = await response.json();
