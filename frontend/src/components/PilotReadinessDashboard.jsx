@@ -77,7 +77,7 @@ export function PilotReadinessDashboard() {
       <section className="page-intro">
         <span className="eyebrow">Staff/Admin</span>
         <h2>Pilot Readiness Dashboard</h2>
-        <p>Operational readiness check for a controlled youth pilot using current platform data.</p>
+        <p>Use Pilot Readiness before launch to check blockers, warnings, readiness score, and the operational checklist using current platform data.</p>
       </section>
 
       <section className="dashboard-section">

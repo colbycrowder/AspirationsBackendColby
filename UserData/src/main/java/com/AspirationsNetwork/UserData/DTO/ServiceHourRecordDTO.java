@@ -8,6 +8,7 @@ import java.util.Date;
 @Getter
 @Setter
 public class ServiceHourRecordDTO {
+    private String userIdentifier;
     private String userUID;
     private String programId;
     private Date serviceDate;

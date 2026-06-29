@@ -9,7 +9,11 @@ export class ApiAccessError extends Error {
 }
 
 export async function fetchActivePrograms() {
-  const response = await fetch(`${trimTrailingSlash(appConfig.apiBaseUrl)}/api/programs`);
+  const response = await fetchWithFriendlyNetworkError(
+    `${trimTrailingSlash(appConfig.apiBaseUrl)}/api/programs`,
+    {},
+    "Programs are unavailable. Confirm the backend is running and try again."
+  );
 
   if (!response.ok) {
     throw new Error("Programs are unavailable. Confirm the backend is running and Firebase staging is configured.");
@@ -20,7 +24,11 @@ export async function fetchActivePrograms() {
 }
 
 export async function fetchActiveRwdActivities() {
-  const response = await fetch(`${trimTrailingSlash(appConfig.apiBaseUrl)}/api/rwd/activities`);
+  const response = await fetchWithFriendlyNetworkError(
+    `${trimTrailingSlash(appConfig.apiBaseUrl)}/api/rwd/activities`,
+    {},
+    "Global Civic Movements activities are unavailable. Confirm the backend is running and try again."
+  );
 
   if (!response.ok) {
     throw new Error("RWD activities are unavailable. Confirm the backend is running and Firebase staging is configured.");
@@ -36,27 +44,31 @@ export async function fetchYouthDashboard(user) {
   }
 
   const token = await user.getIdToken();
-  const response = await fetch(`${trimTrailingSlash(appConfig.apiBaseUrl)}/api/me/dashboard`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
+  const response = await fetchWithFriendlyNetworkError(
+    `${trimTrailingSlash(appConfig.apiBaseUrl)}/api/me/dashboard`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
     },
-  });
+    "Home is unavailable. Confirm the backend is running and try again."
+  );
 
   if (response.status === 401) {
     throw new Error("Firebase sign-in is required or the token was rejected.");
   }
 
   if (response.status === 404) {
-    throw new Error("Dashboard data is unavailable because this Firebase user does not have a matching Firestore profile yet.");
+    throw new Error("Home is unavailable because this Firebase user does not have a matching Firestore profile yet.");
   }
 
   if (!response.ok) {
-    throw new Error("Dashboard data is unavailable. Confirm the backend is running and Firebase staging is configured.");
+    throw new Error("Home is unavailable. Confirm the backend is running and Firebase staging is configured.");
   }
 
   const dashboard = await response.json();
   if (!dashboard || Object.keys(dashboard).length === 0) {
-    throw new Error("Dashboard data is unavailable because the backend returned an empty dashboard response.");
+    throw new Error("Home is unavailable because the backend returned an empty response.");
   }
 
   return dashboard;
@@ -90,11 +102,15 @@ export async function fetchMyProfile(user) {
   }
 
   const token = await user.getIdToken();
-  const response = await fetch(`${trimTrailingSlash(appConfig.apiBaseUrl)}/api/me/profile`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
+  const response = await fetchWithFriendlyNetworkError(
+    `${trimTrailingSlash(appConfig.apiBaseUrl)}/api/me/profile`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
     },
-  });
+    "Profile data is unavailable. Confirm the backend is running and try again."
+  );
 
   if (response.status === 401) {
     throw new Error("Firebase sign-in is required or the token was rejected.");
@@ -117,14 +133,18 @@ export async function saveMyProfile(user, profile) {
   }
 
   const token = await user.getIdToken();
-  const response = await fetch(`${trimTrailingSlash(appConfig.apiBaseUrl)}/api/me/profile`, {
-    body: JSON.stringify(profile),
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
+  const response = await fetchWithFriendlyNetworkError(
+    `${trimTrailingSlash(appConfig.apiBaseUrl)}/api/me/profile`,
+    {
+      body: JSON.stringify(profile),
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      method: "PATCH",
     },
-    method: "PATCH",
-  });
+    "Profile could not be saved. Confirm the backend is running and try again."
+  );
 
   if (response.status === 401) {
     throw new Error("Firebase sign-in is required or the token was rejected.");
@@ -151,14 +171,18 @@ export async function enrollInProgram(user, programId) {
   }
 
   const token = await user.getIdToken();
-  const response = await fetch(`${trimTrailingSlash(appConfig.apiBaseUrl)}/api/me/program-enrollments`, {
-    body: JSON.stringify({ programId }),
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
+  const response = await fetchWithFriendlyNetworkError(
+    `${trimTrailingSlash(appConfig.apiBaseUrl)}/api/me/program-enrollments`,
+    {
+      body: JSON.stringify({ programId }),
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      method: "POST",
     },
-    method: "POST",
-  });
+    "Enrollment failed. Confirm the backend is running and try again."
+  );
 
   if (response.status === 401) {
     throw new Error("Firebase sign-in is required or the token was rejected.");
@@ -186,33 +210,37 @@ export async function enrollInProgram(user, programId) {
 
 export async function saveRwdProgress(user, progress) {
   if (!user) {
-    throw new Error("Sign in before updating RWD progress.");
+    throw new Error("Sign in before updating Global Civic Movements progress.");
   }
 
   if (!progress?.rwdActivityId) {
-    throw new Error("RWD activity selection is required before updating progress.");
+    throw new Error("Global Civic Movements activity selection is required before updating progress.");
   }
 
   const token = await user.getIdToken();
-  const response = await fetch(`${trimTrailingSlash(appConfig.apiBaseUrl)}/api/me/rwd-progress`, {
-    body: JSON.stringify(progress),
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
+  const response = await fetchWithFriendlyNetworkError(
+    `${trimTrailingSlash(appConfig.apiBaseUrl)}/api/me/rwd-progress`,
+    {
+      body: JSON.stringify(progress),
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      method: "POST",
     },
-    method: "POST",
-  });
+    "Global Civic Movements progress update failed. Confirm the backend is running and try again."
+  );
 
   if (response.status === 401) {
     throw new Error("Firebase sign-in is required or the token was rejected.");
   }
 
   if (response.status === 400) {
-    throw new Error("RWD progress could not be saved for this activity.");
+    throw new Error("Global Civic Movements progress could not be saved for this activity.");
   }
 
   if (!response.ok) {
-    throw new Error("RWD progress update failed. Confirm the backend is running and try again.");
+    throw new Error("Global Civic Movements progress update failed. Confirm the backend is running and try again.");
   }
 
   return response.json();
@@ -224,11 +252,15 @@ export async function fetchNotifications(user) {
   }
 
   const token = await user.getIdToken();
-  const response = await fetch(`${trimTrailingSlash(appConfig.apiBaseUrl)}/api/me/notifications`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
+  const response = await fetchWithFriendlyNetworkError(
+    `${trimTrailingSlash(appConfig.apiBaseUrl)}/api/me/notifications`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
     },
-  });
+    "Notifications are unavailable. Confirm the backend is running and try again."
+  );
 
   if (response.status === 401) {
     throw new Error("Firebase sign-in is required or the token was rejected.");
@@ -252,14 +284,15 @@ export async function markNotificationRead(user, notificationId) {
   }
 
   const token = await user.getIdToken();
-  const response = await fetch(
+  const response = await fetchWithFriendlyNetworkError(
     `${trimTrailingSlash(appConfig.apiBaseUrl)}/api/me/notifications/${notificationId}/read`,
     {
       headers: {
         Authorization: `Bearer ${token}`,
       },
       method: "PATCH",
-    }
+    },
+    "Notification could not be marked as read. Confirm the backend is running and try again."
   );
 
   if (response.status === 401) {
@@ -405,6 +438,37 @@ export async function fetchStaffYouthUser(user, userUID) {
   }
 
   const response = await fetchStaffEndpoint(user, `/api/staff/users/youth/${encodeURIComponent(userUID)}`);
+  return response.json();
+}
+
+export async function fetchStaffYouthStudentRecord(user, userUID) {
+  if (!userUID) {
+    throw new Error("Youth user selection is required.");
+  }
+
+  const path = `/api/staff/users/youth/${encodeURIComponent(userUID)}/record`;
+  try {
+    const response = await fetchStaffEndpoint(user, path);
+    return response.json();
+  } catch (error) {
+    if (error instanceof ApiAccessError) {
+      throw error;
+    }
+    throw new Error(`Student record request failed: ${error.message || "Network request failed"}`);
+  }
+}
+
+export async function fetchStaffYouthDuplicateProfiles(user, userUID) {
+  if (!userUID) {
+    throw new Error("Youth user selection is required.");
+  }
+
+  const response = await fetchStaffEndpoint(user, `/api/staff/users/youth/${encodeURIComponent(userUID)}/duplicates`);
+  return response.json();
+}
+
+export async function fetchStaffYouthDuplicateProfileGroups(user) {
+  const response = await fetchStaffEndpoint(user, "/api/staff/users/youth/duplicate-groups");
   return response.json();
 }
 
@@ -659,6 +723,19 @@ export async function createStaffAttendanceRecord(user, attendanceRecord) {
   });
 
   return response.text();
+}
+
+export async function createStaffAttendanceBatch(user, attendanceBatch) {
+  const response = await fetchStaffEndpoint(user, "/api/staff/attendance/batch", {
+    body: JSON.stringify(attendanceBatch),
+    headers: {
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+  });
+
+  const recordIds = await response.json();
+  return Array.isArray(recordIds) ? recordIds : [];
 }
 
 export async function fetchStaffAttendanceRecords(user, filters = {}) {
@@ -1273,13 +1350,22 @@ async function fetchStaffEndpoint(user, path, options = {}) {
   }
 
   const token = await user.getIdToken();
-  const response = await fetch(`${trimTrailingSlash(appConfig.apiBaseUrl)}${path}`, {
-    ...options,
-    headers: {
-      ...(options.headers || {}),
-      Authorization: `Bearer ${token}`,
-    },
-  });
+  const url = `${trimTrailingSlash(appConfig.apiBaseUrl)}${path}`;
+  let response;
+  try {
+    response = await fetch(url, {
+      ...options,
+      headers: {
+        ...(options.headers || {}),
+        Authorization: `Bearer ${token}`,
+      },
+    });
+  } catch (error) {
+    throw new ApiAccessError(
+      "Staff/admin data is unavailable. Confirm the backend is running and try again.",
+      0
+    );
+  }
 
   if (response.status === 401) {
     throw new ApiAccessError("Firebase sign-in is required or the token was rejected.", 401);
@@ -1289,10 +1375,18 @@ async function fetchStaffEndpoint(user, path, options = {}) {
     throw new ApiAccessError("Staff or admin access is required for this page.", 403);
   }
 
+  if (response.status === 404) {
+    const message = await readResponseMessage(response);
+    throw new ApiAccessError(
+      toSafeStaffErrorMessage(message, "Requested staff/admin resource was not found."),
+      404
+    );
+  }
+
   if (!response.ok) {
     const message = await readResponseMessage(response);
     throw new ApiAccessError(
-      message || "Staff/admin data is unavailable. Confirm the backend is running and try again.",
+      toSafeStaffErrorMessage(message, "Staff/admin data is unavailable. Confirm the backend is running and try again."),
       response.status
     );
   }
@@ -1302,9 +1396,54 @@ async function fetchStaffEndpoint(user, path, options = {}) {
 
 async function readResponseMessage(response) {
   try {
-    return await response.text();
+    const text = await response.text();
+    if (!text) {
+      return "";
+    }
+
+    try {
+      const parsed = JSON.parse(text);
+      if (Array.isArray(parsed)) {
+        return parsed.filter(Boolean).join(" ");
+      }
+      if (parsed && typeof parsed === "object") {
+        return parsed.message || parsed.error || text;
+      }
+    } catch {
+      // Fall through to the raw response text.
+    }
+
+    return text;
   } catch {
     return "";
+  }
+}
+
+function toSafeStaffErrorMessage(message, fallback) {
+  if (!message || hasTechnicalErrorDetails(message)) {
+    return fallback;
+  }
+  return message;
+}
+
+function hasTechnicalErrorDetails(message) {
+  const value = String(message).toLowerCase();
+  return value.includes("http://")
+    || value.includes("https://")
+    || value.includes("/api/")
+    || value.includes("failed to fetch")
+    || value.includes("networkerror")
+    || value.includes("typeerror")
+    || value.includes("exception")
+    || value.includes("stack trace")
+    || value.includes("cors");
+}
+
+async function fetchWithFriendlyNetworkError(url, options, fallbackMessage) {
+  try {
+    return await fetch(url, options);
+  } catch {
+    throw new Error(fallbackMessage);
   }
 }
 

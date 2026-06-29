@@ -6,10 +6,18 @@ import {
   fetchStaffCredentialDefinitions,
   fetchStaffCredentialTotals,
   fetchStaffPilotReporting,
+  fetchStaffProgramEnrollmentsForProgram,
+  fetchStaffPrograms,
+  fetchStaffYouthUsers,
   restoreStaffCredentialDefinition,
   updateStaffCredentialDefinition,
 } from "../api.js";
 import { useAuth } from "../auth/AuthContext.jsx";
+import {
+  buildProgramRosterOptions,
+  findYouthByIdentifier,
+  StaffRosterYouthSelect,
+} from "./StaffRosterYouthSelect.jsx";
 import { getRecordId, getStaffPageError, StaffMessage, StaffState, SummaryGrid } from "./staffUi.jsx";
 
 const emptyFilters = { category: "", active: "", programId: "" };
@@ -22,7 +30,7 @@ const emptyDefinition = {
   programIds: "",
   requirementText: "",
 };
-const emptyAward = { userUID: "", credentialID: "" };
+const emptyAward = { selectedYouthUid: "", userIdentifier: "", programId: "", credentialID: "" };
 const emptyDetailForm = {
   credentialName: "",
   description: "",
@@ -37,6 +45,9 @@ export function CredentialManagement() {
   const { user } = useAuth();
   const [filters, setFilters] = useState(emptyFilters);
   const [definitions, setDefinitions] = useState([]);
+  const [youthUsers, setYouthUsers] = useState([]);
+  const [programs, setPrograms] = useState([]);
+  const [programRoster, setProgramRoster] = useState([]);
   const [totals, setTotals] = useState({});
   const [pilotReport, setPilotReport] = useState({});
   const [definitionForm, setDefinitionForm] = useState(emptyDefinition);
@@ -90,12 +101,21 @@ export function CredentialManagement() {
         fetchStaffCredentialTotals(user, clean),
         fetchStaffPilotReporting(user),
       ]);
+      const [programData, youthData] = await Promise.all([
+        fetchStaffPrograms(user, { active: true }).catch(() => []),
+        fetchStaffYouthUsers(user).catch(() => []),
+      ]);
       setDefinitions(definitionData);
+      setPrograms(programData);
+      setYouthUsers(youthData);
       setTotals(totalData);
       setPilotReport(reportData);
     } catch (nextError) {
       setError(getStaffPageError(nextError));
       setDefinitions([]);
+      setPrograms([]);
+      setProgramRoster([]);
+      setYouthUsers([]);
       setTotals({});
       setPilotReport({});
     } finally {
@@ -129,23 +149,66 @@ export function CredentialManagement() {
 
   async function handleAward(event) {
     event.preventDefault();
+    const awardDetails = buildAwardDetails(awardForm, definitions, youthUsers, programs);
+    const confirmed = window.confirm(buildAwardConfirmation(awardDetails));
+    if (!confirmed) {
+      return;
+    }
+
     setBusy("award");
     setMessage("");
     setError("");
 
     try {
       const earnedCredentialID = await awardStaffCredential(user, {
-        userUID: awardForm.userUID.trim(),
+        userIdentifier: awardDetails.userIdentifier,
+        userUID: awardDetails.firebaseUid || awardDetails.userIdentifier,
         credentialID: awardForm.credentialID.trim(),
       });
       setMessage(`Credential awarded: ${earnedCredentialID}`);
       setAwardForm(emptyAward);
+      setProgramRoster([]);
       await loadCredentials();
     } catch (nextError) {
       setError(getStaffPageError(nextError));
     } finally {
       setBusy("");
     }
+  }
+
+  async function handleAwardProgramChange(programId) {
+    setAwardForm((current) => ({
+      ...current,
+      programId,
+      selectedYouthUid: "",
+      userIdentifier: "",
+    }));
+    setProgramRoster([]);
+    setError("");
+    if (!programId) {
+      return;
+    }
+
+    try {
+      setBusy("award-program-roster");
+      const enrollments = await fetchStaffProgramEnrollmentsForProgram(user, programId);
+      const activeEnrollments = enrollments.filter((enrollment) => String(enrollment.enrollmentStatus || "active").toLowerCase() === "active");
+      setProgramRoster(buildProgramRosterOptions(activeEnrollments, youthUsers));
+    } catch (nextError) {
+      setProgramRoster([]);
+      setError(getStaffPageError(nextError));
+    } finally {
+      setBusy("");
+    }
+  }
+
+  function handleAwardYouthSelect(userIdentifier) {
+    const rosterEntry = programRoster.find((entry) => entry.userIdentifier === userIdentifier);
+    setAwardForm((current) => ({
+      ...current,
+      selectedYouthUid: rosterEntry?.userUID || "",
+      userIdentifier,
+    }));
   }
 
   async function handleActiveToggle(definition, active) {
@@ -253,7 +316,19 @@ export function CredentialManagement() {
           <h3>Create Definition</h3>
           <DefinitionForm form={definitionForm} setForm={setDefinitionForm} onSubmit={handleCreate} busy={busy === "create"} />
           <h3>Award Credential</h3>
-          <AwardForm form={awardForm} setForm={setAwardForm} onSubmit={handleAward} busy={busy === "award"} />
+          <AwardForm
+            busy={busy === "award"}
+            definitions={definitions}
+            form={awardForm}
+            loadingRoster={busy === "award-program-roster"}
+            onSubmit={handleAward}
+            onProgramChange={handleAwardProgramChange}
+            onYouthSelect={handleAwardYouthSelect}
+            programs={programs}
+            programRoster={programRoster}
+            setForm={setAwardForm}
+            youthUsers={youthUsers}
+          />
         </div>
 
         <div className="dashboard-section">
@@ -337,12 +412,101 @@ function DefinitionForm({ form, setForm, onSubmit, busy }) {
   );
 }
 
-function AwardForm({ form, setForm, onSubmit, busy }) {
+function AwardForm({
+  busy,
+  definitions,
+  form,
+  loadingRoster,
+  onProgramChange,
+  onSubmit,
+  onYouthSelect,
+  programs,
+  programRoster,
+  setForm,
+  youthUsers,
+}) {
+  const awardDetails = buildAwardDetails(form, definitions, youthUsers, programs);
+  const activeDefinitions = definitions.filter((definition) => definition.active !== false);
+  const canAward = !busy && Boolean(awardDetails.userIdentifier) && Boolean(form.credentialID.trim()) && activeDefinitions.length > 0;
+
   return (
     <form className="compact-form" onSubmit={onSubmit}>
-      <input required placeholder="Youth UID" value={form.userUID} onChange={(event) => setForm({ ...form, userUID: event.target.value })} />
-      <input required placeholder="Credential ID" value={form.credentialID} onChange={(event) => setForm({ ...form, credentialID: event.target.value })} />
-      <button className="primary-action" disabled={busy} type="submit">{busy ? "Awarding..." : "Award Credential"}</button>
+      <label>
+        Program
+        <select required value={form.programId} onChange={(event) => onProgramChange(event.target.value)}>
+          <option value="">Select an active program</option>
+          {programs.filter(isActiveProgram).map((program) => {
+            const programId = getProgramId(program);
+            return (
+              <option key={programId || getProgramName(program)} value={programId}>
+                {getProgramOptionLabel(program)}
+              </option>
+            );
+          })}
+        </select>
+      </label>
+      <StaffRosterYouthSelect
+        formProgramId={form.programId}
+        loadingRoster={loadingRoster}
+        programRoster={programRoster}
+        value={form.userIdentifier}
+        onYouthSelect={onYouthSelect}
+      />
+      {form.programId && !loadingRoster && !programRoster.length ? (
+        <p className="empty-text">No active enrolled youth found for this program. Use Advanced manual entry only if this is expected.</p>
+      ) : null}
+      <details className="advanced-manual-entry">
+        <summary>Advanced manual entry</summary>
+        <label>
+          Youth Identifier
+          <input
+            placeholder="ASPN Participant ID, email, or Firebase UID"
+            value={form.userIdentifier}
+            onChange={(event) => setForm({ ...form, selectedYouthUid: "", userIdentifier: event.target.value })}
+          />
+          <small>Use this only when the roster is incomplete. ASPN Participant ID, email, and Firebase UID are supported for recovery.</small>
+        </label>
+      </details>
+      <label>
+        Credential
+        <select
+          required
+          value={form.credentialID}
+          onChange={(event) => setForm({ ...form, credentialID: event.target.value })}
+        >
+          <option value="">Select an active credential</option>
+          {activeDefinitions.map((definition) => {
+            const credentialID = getCredentialId(definition);
+            return (
+              <option key={credentialID} value={credentialID}>
+                {getCredentialOptionLabel(definition)}
+              </option>
+            );
+          })}
+        </select>
+      </label>
+      {!activeDefinitions.length ? (
+        <p className="empty-text">No active credential definitions are available for awarding.</p>
+      ) : null}
+      <section className="staff-detail-panel" aria-label="Credential award confirmation details">
+        <h4>Confirm Before Awarding</h4>
+        <dl className="staff-detail-list">
+          <div><dt>Youth Name</dt><dd>{awardDetails.youthName || "Not resolved"}</dd></div>
+          <div><dt>Youth Email</dt><dd>{awardDetails.youthEmail || "Not resolved"}</dd></div>
+          <div><dt>ASPN Participant ID</dt><dd>{awardDetails.aspnParticipantId || "Not resolved"}</dd></div>
+          <div><dt>Firebase UID</dt><dd>{awardDetails.firebaseUid || "Not resolved"}</dd></div>
+          <div><dt>Program</dt><dd>{awardDetails.programName || "Select a program"}</dd></div>
+          <div><dt>Credential</dt><dd>{awardDetails.credentialName}</dd></div>
+          <div><dt>Credential ID</dt><dd>{awardDetails.credentialID || "Enter a credential ID"}</dd></div>
+        </dl>
+        {!awardDetails.credentialResolved ? (
+          <p className="empty-text">Select an active credential before awarding.</p>
+        ) : null}
+        {!awardDetails.youthResolved ? (
+          <p className="empty-text">Youth identity could not be resolved in the loaded staff list. The backend will still check the ASPN Participant ID or Firebase UID before awarding.</p>
+        ) : null}
+      </section>
+      <button className="primary-action" disabled={!canAward} type="submit">{busy ? "Awarding..." : "Award Credential"}</button>
     </form>
   );
 }
@@ -478,4 +642,91 @@ function hasEntries(value) {
 function formatPercent(value) {
   const numericValue = Number(value ?? 0);
   return `${Number.isFinite(numericValue) ? numericValue.toFixed(1) : "0.0"}%`;
+}
+
+function buildAwardDetails(form, definitions, youthUsers, programs = []) {
+  const userIdentifier = getAwardIdentifier(form);
+  const credentialID = form.credentialID.trim();
+  const youth = findYouthByIdentifier(youthUsers, userIdentifier);
+  const definition = definitions.find((item) => getCredentialId(item) === credentialID);
+  const program = programs.find((item) => getProgramId(item) === form.programId);
+  const youthName = youth ? formatYouthName(youth) : "";
+  const firebaseUid = youth ? getUserUid(youth) : isLikelyAspnParticipantId(userIdentifier) ? "" : userIdentifier;
+
+  return {
+    aspnParticipantId: youth?.aspnParticipantId || "",
+    credentialID,
+    credentialName: definition?.credentialName || credentialID || "Selected credential",
+    credentialResolved: Boolean(definition),
+    firebaseUid,
+    programName: program ? getProgramName(program) : form.programId,
+    userIdentifier,
+    youthEmail: youth?.email || "",
+    youthName,
+    youthResolved: Boolean(youth),
+  };
+}
+
+function buildAwardConfirmation(details) {
+  const youthLabel = details.youthName
+    || details.aspnParticipantId
+    || details.userIdentifier
+    || "the selected youth";
+  const lines = [
+    `Award ${details.credentialName} to ${youthLabel}?`,
+    "",
+    `Youth name: ${details.youthName || "Not resolved"}`,
+    `Youth email: ${details.youthEmail || "Not resolved"}`,
+    `ASPN Participant ID: ${details.aspnParticipantId || "Not resolved"}`,
+    `Firebase UID: ${details.firebaseUid || "Not resolved"}`,
+    `Program: ${details.programName || "Not selected"}`,
+    `Credential ID: ${details.credentialID || "Not entered"}`,
+  ];
+
+  if (!details.youthResolved) {
+    lines.push("", "Youth identity could not be resolved in the loaded staff list. The backend will still check the ASPN Participant ID or Firebase UID before awarding.");
+  }
+
+  return lines.join("\n");
+}
+
+function getAwardIdentifier(form) {
+  return (form.userIdentifier || form.userUID || "").trim();
+}
+
+function getCredentialOptionLabel(definition) {
+  const name = definition?.credentialName || "Untitled credential";
+  const category = definition?.category || "Uncategorized";
+  return `${name} — ${category}`;
+}
+
+function getProgramId(program) {
+  return getRecordId(program, ["programId", "programID", "id"]);
+}
+
+function getProgramName(program) {
+  return program?.programName || program?.name || "Untitled program";
+}
+
+function getProgramOptionLabel(program) {
+  const name = getProgramName(program);
+  const status = program?.active === false ? "archived" : "active";
+  return `${name} — ${status}`;
+}
+
+function isActiveProgram(program) {
+  return program?.active !== false;
+}
+
+function isLikelyAspnParticipantId(value) {
+  return /^ASPN-\d{4}-\d+$/i.test(value || "");
+}
+
+function getUserUid(user) {
+  return getRecordId(user, ["uid", "userUID", "userUid"]);
+}
+
+function formatYouthName(user) {
+  const name = [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim();
+  return name || user?.email || getUserUid(user) || "";
 }

@@ -1,3 +1,6 @@
 
 # Local Gradle cache
 .gradle-local/
+firebase-service-account.json
+.DS_Store
+**/.DS_Store

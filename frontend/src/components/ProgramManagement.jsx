@@ -4,8 +4,10 @@ import {
   createStaffProgram,
   fetchStaffPilotReporting,
   fetchStaffProgramDetail,
+  fetchStaffProgramEnrollmentsForProgram,
   fetchStaffPrograms,
   fetchStaffProgramTotals,
+  fetchStaffYouthUsers,
   restoreStaffProgram,
   updateStaffProgram,
 } from "../api.js";
@@ -26,6 +28,8 @@ export function ProgramManagement() {
   const { user } = useAuth();
   const [filters, setFilters] = useState(emptyFilters);
   const [programs, setPrograms] = useState([]);
+  const [youthUsers, setYouthUsers] = useState([]);
+  const [programRoster, setProgramRoster] = useState([]);
   const [totals, setTotals] = useState({});
   const [pilotReport, setPilotReport] = useState({});
   const [detail, setDetail] = useState(null);
@@ -51,12 +55,14 @@ export function ProgramManagement() {
 
     try {
       const apiFilters = buildProgramFilters(nextFilters);
-      const [programData, totalData] = await Promise.all([
+      const [programData, totalData, youthData] = await Promise.all([
         fetchStaffPrograms(user, apiFilters),
         fetchStaffProgramTotals(user),
+        fetchStaffYouthUsers(user),
       ]);
       setPrograms(programData);
       setTotals(totalData);
+      setYouthUsers(youthData);
 
       try {
         setPilotReport(await fetchStaffPilotReporting(user));
@@ -66,6 +72,8 @@ export function ProgramManagement() {
     } catch (nextError) {
       setError(getStaffPageError(nextError));
       setPrograms([]);
+      setYouthUsers([]);
+      setProgramRoster([]);
       setTotals({});
       setPilotReport({});
     } finally {
@@ -87,9 +95,15 @@ export function ProgramManagement() {
     setError("");
 
     try {
-      setDetail(await fetchStaffProgramDetail(user, programId));
+      const [programDetail, enrollments] = await Promise.all([
+        fetchStaffProgramDetail(user, programId),
+        fetchStaffProgramEnrollmentsForProgram(user, programId),
+      ]);
+      setDetail(programDetail);
+      setProgramRoster(buildProgramRoster(enrollments, youthUsers));
     } catch (nextError) {
       setDetail(null);
+      setProgramRoster([]);
       setError(getStaffPageError(nextError));
     }
   }
@@ -144,6 +158,7 @@ export function ProgramManagement() {
         setMessage("Program was archived.");
       }
       setDetail(null);
+      setProgramRoster([]);
       await loadPrograms();
     } catch (nextError) {
       setError(getStaffPageError(nextError));
@@ -201,7 +216,7 @@ export function ProgramManagement() {
 
           <h3>{selectedId ? "Update Program" : "Create Program"}</h3>
           <ProgramForm form={form} setForm={setForm} onSubmit={handleSave} busy={busy === "save"} selectedId={selectedId} />
-          <button className="text-action" type="button" onClick={() => { setSelectedId(""); setDetail(null); setForm(emptyProgram); }}>
+          <button className="text-action" type="button" onClick={() => { setSelectedId(""); setDetail(null); setProgramRoster([]); setForm(emptyProgram); }}>
             New Program
           </button>
         </div>
@@ -255,11 +270,42 @@ export function ProgramManagement() {
                   Restore
                 </button>
               </div>
+              <ProgramRoster roster={programRoster} />
             </div>
           ) : null}
         </div>
       </section>
     </div>
+  );
+}
+
+function ProgramRoster({ roster }) {
+  return (
+    <section className="program-roster-panel" aria-labelledby="program-roster-title">
+      <h3 id="program-roster-title">Program Roster</h3>
+      {roster.length ? (
+        <div className="program-roster-list">
+          <div className="program-roster-row header">
+            <span>Youth name</span>
+            <span>Email</span>
+            <span>ASPN Participant ID</span>
+            <span>Profile status</span>
+            <span>Staff verified</span>
+          </div>
+          {roster.map((entry) => (
+            <div className="program-roster-row" key={entry.userUID || entry.enrollmentId}>
+              <strong className="program-roster-youth">{entry.youthName}</strong>
+              <span className="program-roster-email">{entry.email || "Email not listed"}</span>
+              <span className="program-roster-aspn-id">{entry.aspnParticipantId || "No ASPN ID"}</span>
+              <span className="program-roster-status">{entry.profileStatus || "status missing"}</span>
+              <span className="program-roster-verified">{entry.staffVerified ? "Verified" : "Not verified"}</span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="empty-text">No youth enrolled in this program yet.</p>
+      )}
+    </section>
   );
 }
 
@@ -307,6 +353,33 @@ function buildProgramFilters(filters) {
 
 function getProgramId(program) {
   return getRecordId(program, ["programId", "programID"]);
+}
+
+function buildProgramRoster(enrollments, youthUsers) {
+  return enrollments
+    .filter((enrollment) => String(enrollment.enrollmentStatus || "active").toLowerCase() === "active")
+    .map((enrollment) => {
+      const youth = youthUsers.find((item) => getUserUid(item) === enrollment.userUID);
+      return {
+        enrollmentId: enrollment.enrollmentId,
+        userUID: enrollment.userUID,
+        youthName: youth ? formatYouthName(youth) : enrollment.userUID || "Unknown youth",
+        email: youth?.email || "",
+        aspnParticipantId: youth?.aspnParticipantId || "",
+        profileStatus: youth?.profileStatus || "",
+        staffVerified: Boolean(youth?.staffVerified),
+      };
+    })
+    .sort((left, right) => left.youthName.localeCompare(right.youthName));
+}
+
+function getUserUid(user) {
+  return getRecordId(user, ["uid", "userUID", "userUid"]);
+}
+
+function formatYouthName(user) {
+  const name = [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim();
+  return name || user?.email || getUserUid(user) || "Unnamed youth";
 }
 
 function filterPrograms(programs, filters) {

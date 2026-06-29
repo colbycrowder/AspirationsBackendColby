@@ -8,6 +8,7 @@ import java.util.Date;
 @Getter
 @Setter
 public class AttendanceRecordCreationDTO {
+    private String userIdentifier;
     private String userUID;
     private String programID;
     private String eventName;

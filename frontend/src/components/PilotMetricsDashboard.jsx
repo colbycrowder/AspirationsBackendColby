@@ -57,7 +57,7 @@ export function PilotMetricsDashboard() {
       <section className="page-intro">
         <span className="eyebrow">Staff/Admin</span>
         <h2>Pilot Metrics Dashboard</h2>
-        <p>Centralized pilot data collection measures for staff review. This is measurement only, not causal evaluation.</p>
+        <p>Use Pilot Metrics to monitor pilot engagement and activity across registration, programs, credentials, service, stakeholders, and operations. This is measurement only, not causal evaluation.</p>
       </section>
 
       <section className="dashboard-section">

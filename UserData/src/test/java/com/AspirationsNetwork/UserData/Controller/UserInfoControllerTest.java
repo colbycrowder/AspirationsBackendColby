@@ -1,11 +1,14 @@
 package com.AspirationsNetwork.UserData.Controller;
 
 import com.AspirationsNetwork.UserData.DTO.AttendanceRecordCreationDTO;
+import com.AspirationsNetwork.UserData.DTO.AttendanceBatchCreationDTO;
 import com.AspirationsNetwork.UserData.DTO.AttendanceTotalsDTO;
 import com.AspirationsNetwork.UserData.DTO.AwardCredentialDTO;
 import com.AspirationsNetwork.UserData.DTO.CredentialDefinitionCreationDTO;
 import com.AspirationsNetwork.UserData.DTO.CredentialDefinitionUpdateDTO;
 import com.AspirationsNetwork.UserData.DTO.CredentialTotalsDTO;
+import com.AspirationsNetwork.UserData.DTO.DuplicateYouthProfileGroupDTO;
+import com.AspirationsNetwork.UserData.DTO.DuplicateYouthProfileSummaryDTO;
 import com.AspirationsNetwork.UserData.DTO.EarnedCredentialDisplayDTO;
 import com.AspirationsNetwork.UserData.DTO.EducatorDTO;
 import com.AspirationsNetwork.UserData.DTO.EducatorTotalsDTO;
@@ -64,6 +67,7 @@ import com.AspirationsNetwork.UserData.Service.AuthService;
 import com.AspirationsNetwork.UserData.Service.CredentialService;
 import com.AspirationsNetwork.UserData.Service.DashboardService;
 import com.AspirationsNetwork.UserData.Service.DiscussionPostService;
+import com.AspirationsNetwork.UserData.Service.DuplicateCredentialAwardException;
 import com.AspirationsNetwork.UserData.Service.EducatorService;
 import com.AspirationsNetwork.UserData.Service.ExternalDatasetLinkService;
 import com.AspirationsNetwork.UserData.Service.ForbiddenAccessException;
@@ -96,6 +100,7 @@ import java.util.Date;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.argThat;
 import static org.mockito.Mockito.eq;
@@ -886,6 +891,24 @@ class UserInfoControllerTest {
     }
 
     @Test
+    void awardCredentialReturnsConflictForDuplicateAward() throws Exception {
+        AwardCredentialDTO dto = new AwardCredentialDTO();
+        dto.setCredentialID("credential-123");
+        dto.setUserUID("youth-123");
+        when(authService.requireStaff("Bearer token")).thenReturn("verified-staff-123");
+        when(credentialService.awardCredentialToYouth(dto))
+                .thenThrow(new DuplicateCredentialAwardException(
+                        "This youth has already earned Civic Research on Jun 24, 2026."
+                ));
+
+        ResponseEntity<String> response = controller.awardCredentialToYouth("Bearer token", dto);
+
+        assertEquals(HttpStatus.CONFLICT, response.getStatusCode());
+        assertEquals("This youth has already earned Civic Research on Jun 24, 2026.", response.getBody());
+        verifyNoInteractions(staffOperationEventService);
+    }
+
+    @Test
     void createCredentialDefinitionReturnsUnauthorizedWithoutFirebaseToken() throws Exception {
         CredentialDefinitionCreationDTO dto = new CredentialDefinitionCreationDTO();
         doThrow(new UnauthorizedAccessException("Authorization bearer token is required"))
@@ -1396,6 +1419,261 @@ class UserInfoControllerTest {
     }
 
     @Test
+    void getYouthStudentRecordForStaffReturnsCredentialsAndAttendanceForAspnParticipantId() throws Exception {
+        User youth = new User();
+        youth.setUid("firebase-youth-123");
+        youth.setEmail("colbycrowderc@gmail.com");
+        youth.setAspnParticipantId("ASPN-2026-0001");
+
+        EarnedCredentialDisplayDTO credential = new EarnedCredentialDisplayDTO();
+        credential.setCredentialName("Civic Research");
+        AttendanceRecord attendanceRecord = new AttendanceRecord();
+        attendanceRecord.setUserUID("firebase-youth-123");
+        attendanceRecord.setEventName("YAB Meeting Test 4");
+        YouthDashboardDTO dashboard = new YouthDashboardDTO();
+        dashboard.setEarnedCredentials(List.of(credential));
+        dashboard.setAttendanceRecords(List.of(attendanceRecord));
+        dashboard.setServiceHourRecords(List.of());
+
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+        when(userInfoService.getYouthUserForStaff("ASPN-2026-0001")).thenReturn(youth);
+        when(userInfoService.resolveYouthUserUidForStaff("ASPN-2026-0001")).thenReturn("firebase-youth-123");
+        when(dashboardService.getYouthDashboard("firebase-youth-123")).thenReturn(dashboard);
+
+        ResponseEntity<?> response = controller.getYouthStudentRecordForStaff(
+                "Bearer staff-token",
+                "ASPN-2026-0001"
+        );
+        YouthSelfServiceProfileDTO body = (YouthSelfServiceProfileDTO) response.getBody();
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("firebase-youth-123", body.getUser().getUid());
+        assertEquals("Civic Research", body.getEarnedCredentials().get(0).getCredentialName());
+        assertEquals("YAB Meeting Test 4", body.getAttendanceRecords().get(0).getEventName());
+        assertTrue(body.getServiceHourRecords().isEmpty());
+    }
+
+    @Test
+    void getYouthStudentRecordForStaffReturnsCredentialsAndAttendanceForEmail() throws Exception {
+        User youth = new User();
+        youth.setUid("firebase-youth-123");
+        youth.setEmail("colbycrowderc@gmail.com");
+        youth.setAspnParticipantId("ASPN-2026-0001");
+
+        EarnedCredentialDisplayDTO credential = new EarnedCredentialDisplayDTO();
+        credential.setCredentialName("Civic Research");
+        AttendanceRecord attendanceRecord = new AttendanceRecord();
+        attendanceRecord.setUserUID("firebase-youth-123");
+        attendanceRecord.setEventName("YAB Meeting Test 4");
+        YouthDashboardDTO dashboard = new YouthDashboardDTO();
+        dashboard.setEarnedCredentials(List.of(credential));
+        dashboard.setAttendanceRecords(List.of(attendanceRecord));
+        dashboard.setServiceHourRecords(List.of());
+
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+        when(userInfoService.getYouthUserForStaff("colbycrowderc@gmail.com")).thenReturn(youth);
+        when(userInfoService.resolveYouthUserUidForStaff("colbycrowderc@gmail.com")).thenReturn("firebase-youth-123");
+        when(dashboardService.getYouthDashboard("firebase-youth-123")).thenReturn(dashboard);
+
+        ResponseEntity<?> response = controller.getYouthStudentRecordForStaff(
+                "Bearer staff-token",
+                "colbycrowderc@gmail.com"
+        );
+        YouthSelfServiceProfileDTO body = (YouthSelfServiceProfileDTO) response.getBody();
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("Civic Research", body.getEarnedCredentials().get(0).getCredentialName());
+        assertEquals("YAB Meeting Test 4", body.getAttendanceRecords().get(0).getEventName());
+    }
+
+    @Test
+    void getYouthStudentRecordForStaffReturnsCredentialsAndAttendanceForFirebaseUid() throws Exception {
+        User youth = new User();
+        youth.setUid("firebase-youth-123");
+        youth.setEmail("colbycrowderc@gmail.com");
+        youth.setAspnParticipantId("ASPN-2026-0001");
+
+        EarnedCredentialDisplayDTO credential = new EarnedCredentialDisplayDTO();
+        credential.setCredentialName("Civic Research");
+        AttendanceRecord attendanceRecord = new AttendanceRecord();
+        attendanceRecord.setUserUID("firebase-youth-123");
+        attendanceRecord.setEventName("YAB 35H Test");
+        YouthDashboardDTO dashboard = new YouthDashboardDTO();
+        dashboard.setEarnedCredentials(List.of(credential));
+        dashboard.setAttendanceRecords(List.of(attendanceRecord));
+        dashboard.setServiceHourRecords(null);
+
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+        when(userInfoService.getYouthUserForStaff("firebase-youth-123")).thenReturn(youth);
+        when(userInfoService.resolveYouthUserUidForStaff("firebase-youth-123")).thenReturn("firebase-youth-123");
+        when(dashboardService.getYouthDashboard("firebase-youth-123")).thenReturn(dashboard);
+
+        ResponseEntity<?> response = controller.getYouthStudentRecordForStaff(
+                "Bearer staff-token",
+                "firebase-youth-123"
+        );
+        YouthSelfServiceProfileDTO body = (YouthSelfServiceProfileDTO) response.getBody();
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("firebase-youth-123", body.getUser().getUid());
+        assertEquals("Civic Research", body.getEarnedCredentials().get(0).getCredentialName());
+        assertEquals("YAB 35H Test", body.getAttendanceRecords().get(0).getEventName());
+        assertTrue(body.getServiceHourRecords().isEmpty());
+    }
+
+    @Test
+    void getYouthStudentRecordForStaffFallsBackToMatchingYouthProfileWithRecords() throws Exception {
+        User selectedYouth = new User();
+        selectedYouth.setUid("stale-youth-uid");
+        selectedYouth.setEmail("colbycrowderc@gmail.com");
+        selectedYouth.setAspnParticipantId("ASPN-2026-0001");
+        selectedYouth.setYouthProfile(true);
+
+        User canonicalYouth = new User();
+        canonicalYouth.setUid("firebase-youth-123");
+        canonicalYouth.setEmail("colbycrowderc@gmail.com");
+        canonicalYouth.setAspnParticipantId("ASPN-2026-0001");
+        canonicalYouth.setYouthProfile(true);
+
+        EarnedCredentialDisplayDTO credential = new EarnedCredentialDisplayDTO();
+        credential.setCredentialName("Civic Research");
+        AttendanceRecord attendanceRecord = new AttendanceRecord();
+        attendanceRecord.setUserUID("firebase-youth-123");
+        attendanceRecord.setEventName("YAB 35H Test");
+
+        YouthDashboardDTO emptyDashboard = new YouthDashboardDTO();
+        YouthDashboardDTO canonicalDashboard = new YouthDashboardDTO();
+        canonicalDashboard.setEarnedCredentials(List.of(credential));
+        canonicalDashboard.setAttendanceRecords(List.of(attendanceRecord));
+        canonicalDashboard.setServiceHourRecords(List.of());
+
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+        when(userInfoService.getYouthUserForStaff("stale-youth-uid")).thenReturn(selectedYouth);
+        when(userInfoService.resolveYouthUserUidForStaff("stale-youth-uid")).thenReturn("stale-youth-uid");
+        when(dashboardService.getYouthDashboard("stale-youth-uid")).thenReturn(emptyDashboard);
+        when(userInfoService.getYouthUsersForStaff()).thenReturn(List.of(selectedYouth, canonicalYouth));
+        when(dashboardService.getYouthDashboard("firebase-youth-123")).thenReturn(canonicalDashboard);
+
+        ResponseEntity<?> response = controller.getYouthStudentRecordForStaff(
+                "Bearer staff-token",
+                "stale-youth-uid"
+        );
+        YouthSelfServiceProfileDTO body = (YouthSelfServiceProfileDTO) response.getBody();
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("firebase-youth-123", body.getUser().getUid());
+        assertEquals("Civic Research", body.getEarnedCredentials().get(0).getCredentialName());
+        assertEquals("YAB 35H Test", body.getAttendanceRecords().get(0).getEventName());
+        assertTrue(body.getServiceHourRecords().isEmpty());
+    }
+
+    @Test
+    void getPossibleDuplicateYouthProfilesForStaffReturnsSafeDuplicateSummaries() throws Exception {
+        User selectedYouth = new User();
+        selectedYouth.setUid("stale-youth-uid");
+        selectedYouth.setEmail("ColbyCrowderC@gmail.com");
+        selectedYouth.setAspnParticipantId("ASPN-2026-0001");
+        selectedYouth.setYouthProfile(true);
+
+        User duplicateYouth = new User();
+        duplicateYouth.setUid("firebase-youth-123");
+        duplicateYouth.setFirstName("Colby");
+        duplicateYouth.setLastName("Crowder");
+        duplicateYouth.setEmail("colbycrowderc@gmail.com");
+        duplicateYouth.setAspnParticipantId("ASPN-2026-0001");
+        duplicateYouth.setProfileStatus("active");
+        duplicateYouth.setYouthProfile(true);
+
+        EarnedCredentialDisplayDTO credential = new EarnedCredentialDisplayDTO();
+        credential.setCredentialName("Civic Research");
+        YouthDashboardDTO dashboard = new YouthDashboardDTO();
+        dashboard.setEarnedCredentials(List.of(credential));
+        dashboard.setAttendanceRecords(List.of());
+        dashboard.setServiceHourRecords(List.of());
+
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+        when(userInfoService.getYouthUserForStaff("stale-youth-uid")).thenReturn(selectedYouth);
+        when(userInfoService.getPossibleDuplicateYouthProfilesForStaff("stale-youth-uid"))
+                .thenReturn(List.of(duplicateYouth));
+        when(dashboardService.getYouthDashboard("firebase-youth-123")).thenReturn(dashboard);
+
+        ResponseEntity<?> response = controller.getPossibleDuplicateYouthProfilesForStaff(
+                "Bearer staff-token",
+                "stale-youth-uid"
+        );
+        List<DuplicateYouthProfileSummaryDTO> body = (List<DuplicateYouthProfileSummaryDTO>) response.getBody();
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(1, body.size());
+        assertEquals("firebase-youth-123", body.get(0).getUid());
+        assertEquals("Colby Crowder", body.get(0).getName());
+        assertEquals("colbycrowderc@gmail.com", body.get(0).getEmail());
+        assertEquals("ASPN-2026-0001", body.get(0).getAspnParticipantId());
+        assertEquals("active", body.get(0).getProfileStatus());
+        assertTrue(body.get(0).isDashboardRecordsAvailable());
+    }
+
+    @Test
+    void getDuplicateYouthProfileGroupsForStaffReturnsReadOnlyGroupsByParticipantIdAndEmail() throws Exception {
+        User firstYouth = new User();
+        firstYouth.setUid("stale-youth-uid");
+        firstYouth.setFirstName("Colby");
+        firstYouth.setLastName("Crowder");
+        firstYouth.setEmail("ColbyCrowderC@gmail.com");
+        firstYouth.setAspnParticipantId("ASPN-2026-0001");
+        firstYouth.setProfileStatus("pending_onboarding");
+        firstYouth.setStaffVerified(false);
+        firstYouth.setYouthProfile(true);
+
+        User secondYouth = new User();
+        secondYouth.setUid("firebase-youth-123");
+        secondYouth.setFirstName("Colby");
+        secondYouth.setLastName("Crowder");
+        secondYouth.setEmail("colbycrowderc@gmail.com");
+        secondYouth.setAspnParticipantId("ASPN-2026-0001");
+        secondYouth.setProfileStatus("active");
+        secondYouth.setStaffVerified(true);
+        secondYouth.setYouthProfile(true);
+
+        User unrelatedYouth = new User();
+        unrelatedYouth.setUid("other-youth-123");
+        unrelatedYouth.setEmail("other@example.com");
+        unrelatedYouth.setAspnParticipantId("ASPN-2026-0099");
+        unrelatedYouth.setYouthProfile(true);
+
+        EarnedCredentialDisplayDTO credential = new EarnedCredentialDisplayDTO();
+        credential.setCredentialName("Civic Research");
+        YouthDashboardDTO dashboardWithRecords = new YouthDashboardDTO();
+        dashboardWithRecords.setEarnedCredentials(List.of(credential));
+        dashboardWithRecords.setAttendanceRecords(List.of());
+        dashboardWithRecords.setServiceHourRecords(List.of());
+        YouthDashboardDTO emptyDashboard = new YouthDashboardDTO();
+
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+        when(userInfoService.getYouthUsersForStaff()).thenReturn(List.of(firstYouth, secondYouth, unrelatedYouth));
+        when(dashboardService.getYouthDashboard("stale-youth-uid")).thenReturn(emptyDashboard);
+        when(dashboardService.getYouthDashboard("firebase-youth-123")).thenReturn(dashboardWithRecords);
+        when(dashboardService.getYouthDashboard("other-youth-123")).thenReturn(emptyDashboard);
+
+        ResponseEntity<?> response = controller.getDuplicateYouthProfileGroupsForStaff("Bearer staff-token");
+        List<DuplicateYouthProfileGroupDTO> body = (List<DuplicateYouthProfileGroupDTO>) response.getBody();
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(2, body.size());
+        assertEquals("aspnParticipantId", body.get(0).getMatchType());
+        assertEquals("ASPN-2026-0001", body.get(0).getMatchValue());
+        assertEquals("Matching ASPN Participant ID", body.get(0).getReason());
+        assertEquals(2, body.get(0).getProfiles().size());
+        assertEquals("email", body.get(1).getMatchType());
+        assertEquals("colbycrowderc@gmail.com", body.get(1).getMatchValue());
+        assertEquals("Matching email", body.get(1).getReason());
+        assertTrue(body.get(0).getProfiles().stream()
+                .anyMatch(profile -> "firebase-youth-123".equals(profile.getUid())
+                        && profile.isStaffVerified()
+                        && profile.isDashboardRecordsAvailable()));
+    }
+
+    @Test
     void createAttendanceRecordReturnsCreatedRecordIdAndUsesVerifiedStaffUid() throws Exception {
         AttendanceRecordCreationDTO dto = new AttendanceRecordCreationDTO();
         dto.setUserUID("youth-123");
@@ -1435,6 +1713,44 @@ class UserInfoControllerTest {
 
         assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
         assertEquals("Staff role is required", response.getBody());
+    }
+
+    @Test
+    void createAttendanceBatchAcceptsAspnIdentifierAndRecordsCanBeFetchedByResolvedFirebaseUid() throws Exception {
+        AttendanceBatchCreationDTO batch = new AttendanceBatchCreationDTO();
+        batch.setProgramID("program-123");
+        batch.setEventName("YAB Meeting Test 4");
+        batch.setEventDate(new Date());
+
+        AttendanceRecordCreationDTO record = new AttendanceRecordCreationDTO();
+        record.setUserIdentifier("ASPN-2026-0001");
+        record.setAttendanceStatus("present");
+        batch.setRecords(List.of(record));
+
+        AttendanceRecord savedRecord = new AttendanceRecord();
+        savedRecord.setAttendanceRecordID("attendance-123");
+        savedRecord.setUserUID("firebase-youth-123");
+        savedRecord.setEventName("YAB Meeting Test 4");
+
+        when(authService.requireStaff("Bearer staff-token")).thenReturn("verified-staff-123");
+        when(attendanceService.createAttendanceRecord(record)).thenReturn("attendance-123");
+        when(attendanceService.getAttendanceRecordsForUser("firebase-youth-123")).thenReturn(List.of(savedRecord));
+
+        ResponseEntity<List<String>> batchResponse = controller.createAttendanceBatch("Bearer staff-token", batch);
+        ResponseEntity<List<AttendanceRecord>> fetchResponse = controller.getAttendanceRecordsForUser(
+                "Bearer staff-token",
+                "firebase-youth-123"
+        );
+
+        assertEquals(HttpStatus.OK, batchResponse.getStatusCode());
+        assertEquals(List.of("attendance-123"), batchResponse.getBody());
+        assertEquals("verified-staff-123", record.getStaffRecorderUID());
+        assertEquals("program-123", record.getProgramID());
+        assertEquals("YAB Meeting Test 4", record.getEventName());
+        assertEquals("ASPN-2026-0001", record.getUserIdentifier());
+        assertEquals(HttpStatus.OK, fetchResponse.getStatusCode());
+        assertEquals("firebase-youth-123", fetchResponse.getBody().get(0).getUserUID());
+        assertEquals("YAB Meeting Test 4", fetchResponse.getBody().get(0).getEventName());
     }
 
     @Test

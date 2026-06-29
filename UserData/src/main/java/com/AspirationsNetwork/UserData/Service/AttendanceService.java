@@ -4,6 +4,7 @@ import com.AspirationsNetwork.UserData.DTO.AttendanceRecordCreationDTO;
 import com.AspirationsNetwork.UserData.DTO.AttendanceTotalsDTO;
 import com.AspirationsNetwork.UserData.Models.AttendanceRecord;
 import com.google.api.core.ApiFuture;
+import com.google.cloud.firestore.CollectionReference;
 import com.google.cloud.firestore.DocumentReference;
 import com.google.cloud.firestore.DocumentSnapshot;
 import com.google.cloud.firestore.FieldValue;
@@ -33,7 +34,8 @@ public class AttendanceService {
     private final CredentialService credentialService;
 
     public String createAttendanceRecord(AttendanceRecordCreationDTO dto) throws Exception {
-        requireText(dto.getUserUID(), "userUID is required");
+        String resolvedUserUID = resolveYouthUserUID(dto.getUserIdentifier(), dto.getUserUID());
+        dto.setUserUID(resolvedUserUID);
         requireText(dto.getProgramID(), "programID is required");
         requireText(dto.getEventName(), "eventName is required");
         requireText(dto.getStaffRecorderUID(), "staffRecorderUID is required");
@@ -226,6 +228,54 @@ public class AttendanceService {
 
     private boolean hasText(String value) {
         return value != null && !value.isBlank();
+    }
+
+    private String resolveYouthUserUID(String userIdentifier, String userUID) throws Exception {
+        String identifier = firstText(userIdentifier, userUID);
+        requireText(identifier, "userIdentifier is required");
+
+        if (!isAspnParticipantId(identifier) && !isEmail(identifier)) {
+            return identifier;
+        }
+
+        String fieldName = isAspnParticipantId(identifier) ? "aspnParticipantId" : "email";
+        QuerySnapshot matches = getYouthProfileMatches(fieldName, identifier);
+
+        if (matches.isEmpty()) {
+            throw new IllegalArgumentException("Youth profile does not exist for the provided identifier");
+        }
+
+        if (matches.getDocuments().size() > 1) {
+            throw new IllegalArgumentException("Multiple youth profiles match the provided identifier");
+        }
+
+        return matches.getDocuments().get(0).getId();
+    }
+
+    private QuerySnapshot getYouthProfileMatches(String fieldName, String value) throws Exception {
+        CollectionReference users = firestore.collection(UserInfoService.COLLECTION_NAME);
+        return users
+                .whereEqualTo(fieldName, value)
+                .get()
+                .get();
+    }
+
+    private String firstText(String first, String second) {
+        if (hasText(first)) {
+            return first.trim();
+        }
+        if (hasText(second)) {
+            return second.trim();
+        }
+        return "";
+    }
+
+    private boolean isAspnParticipantId(String value) {
+        return hasText(value) && value.trim().toUpperCase().startsWith("ASPN-");
+    }
+
+    private boolean isEmail(String value) {
+        return hasText(value) && value.contains("@");
     }
 
     private void evaluateAttendanceAutoAwards(AttendanceRecordCreationDTO dto) {

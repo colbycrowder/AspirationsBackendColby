@@ -117,7 +117,7 @@ export function ProgramsPage() {
         <h2>Available Programs</h2>
         <p>
           Browse active ASPN programs and enroll with your signed-in account. Enrolled programs continue to appear on
-          the youth dashboard.
+          Home.
         </p>
       </section>
 
@@ -183,7 +183,7 @@ export function ProgramsPage() {
                   </button>
                   <small>
                     {isEnrolled
-                      ? "This program is now part of your dashboard."
+                      ? "This program is now part of Home."
                       : isActive
                         ? "Enrollment uses your verified Firebase account."
                         : "Archived programs are not open for enrollment."}

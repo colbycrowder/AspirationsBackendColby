@@ -7,6 +7,8 @@ import lombok.Setter;
 @Setter
 public class AwardCredentialDTO {
     private String credentialID;
+    private String credentialIdentifier;
+    private String userIdentifier;
     private String userUID;
     private String awardedByStaffUID;
 }

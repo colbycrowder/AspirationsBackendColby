@@ -57,7 +57,7 @@ export function ServiceHoursPage() {
       <ServiceHoursState
         title="Service hours unavailable"
         message={error}
-        note="If this is a new Firebase account, ASPN may still need to create the matching Firestore profile document."
+        note="If this is a new Firebase account, complete your ASPN profile before opening Service Hours."
       />
     );
   }
@@ -82,7 +82,7 @@ export function ServiceHoursPage() {
         <h3>Request Service-Hour Verification</h3>
         {dashboard?.serviceHourRequestFormUrl ? (
           <a className="primary-action link-action" href={dashboard.serviceHourRequestFormUrl} target="_blank" rel="noreferrer">
-            Open Request Form
+            Open Request Form (opens in new tab)
           </a>
         ) : (
           <p className="empty-text">Service-hour request link is not configured yet.</p>
@@ -118,7 +118,7 @@ export function ServiceHoursPage() {
                   </div>
                   <div>
                     <dt>Program</dt>
-                    <dd>{record.programId || "Not listed"}</dd>
+                    <dd>{getProgramName(dashboard?.programs, record)}</dd>
                   </div>
                   <div>
                     <dt>Source</dt>
@@ -210,4 +210,18 @@ function formatDate(value) {
 
 function asArray(value) {
   return Array.isArray(value) ? value : [];
+}
+
+function getProgramName(programs, record) {
+  if (record?.programName) {
+    return record.programName;
+  }
+
+  const programId = record?.programId;
+  if (!programId) {
+    return "Program not listed";
+  }
+
+  const program = asArray(programs).find((item) => item.programId === programId || item.programID === programId);
+  return program?.programName || program?.title || program?.name || "Program not listed";
 }

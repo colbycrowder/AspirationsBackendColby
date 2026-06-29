@@ -1,8 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { fetchYouthDashboard } from "../api.js";
 import { useAuth } from "../auth/AuthContext.jsx";
+import { CredentialIcon } from "./CredentialIcon.jsx";
+import {
+  aspnEcosystemRegistry,
+  findAspnRegistryCredentialMatch,
+} from "../data/aspnEcosystemRegistry.js";
+import { getUniqueEarnedCredentials } from "../utils/credentialDeduplication.js";
 
-export function CredentialsPage() {
+export function CredentialsPage({ navigate }) {
   const { user } = useAuth();
   const [dashboard, setDashboard] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -33,122 +39,173 @@ export function CredentialsPage() {
     }
 
     loadCredentials();
-
     return () => {
       isActive = false;
     };
   }, [user]);
 
-  const earnedCredentials = useMemo(
-    () => asArray(dashboard?.earnedCredentials).sort(compareCredentialNames),
-    [dashboard]
-  );
-  const availableCredentials = useMemo(
-    () => asArray(dashboard?.availableCredentials).sort(compareCredentialNames),
-    [dashboard]
+  const earnedCredentials = useMemo(() => getUniqueEarnedCredentials(dashboard?.earnedCredentials), [dashboard]);
+  const earnedRegistryMatches = useMemo(() => buildEarnedRegistryMatches(earnedCredentials), [earnedCredentials]);
+  const unmatchedEarnedCredentials = useMemo(
+    () => earnedCredentials.filter((credential) => !findAspnRegistryCredentialMatch(credential)),
+    [earnedCredentials]
   );
 
   if (loading) {
-    return <CredentialsState title="Loading credentials" message="Retrieving your ASPN credentials." />;
+    return <CredentialExplorerState title="Loading Credential Explorer" message="Retrieving your credentials and ASPN credential pathways." />;
   }
 
   if (error) {
     return (
-      <CredentialsState
-        title="Credentials unavailable"
+      <CredentialExplorerState
+        title="Credential Explorer unavailable"
         message={error}
-        note="If this is a new Firebase account, ASPN may still need to create the matching Firestore profile document."
+        note="If this is a new Firebase account, complete your ASPN profile before opening the Credential Explorer."
       />
     );
   }
 
   return (
-    <div className="credentials-stack">
-      <section className="page-intro">
-        <span className="eyebrow">Youth Credentials</span>
-        <h2>Credential Wallet</h2>
-        <p>
-          Review credentials you have earned and credentials connected to your active enrolled programs.
-        </p>
+    <div className="credential-explorer-page">
+      <section className="credential-explorer-hero">
+        <span className="credential-explorer-kicker">Build your civic skills</span>
+        <h1>Credential Explorer</h1>
+        <p>Explore the skills, experiences, and civic pathways that ASPN credentials represent.</p>
       </section>
 
-      <section className="credential-summary-grid" aria-label="Credential summary">
-        <SummaryTile label="Earned" value={earnedCredentials.length} />
-        <SummaryTile label="Available" value={availableCredentials.length} />
+      <section className="credential-explorer-summary" aria-label="Earned credential summary">
+        <strong>{earnedCredentials.length}</strong>
+        <div>
+          <h2>{earnedCredentials.length === 1 ? "Credential Earned" : "Credentials Earned"}</h2>
+          <p>
+            {earnedCredentials.length
+              ? "Your earned credentials are highlighted throughout the explorer."
+              : "Participate in programs and learning experiences to begin earning credentials."}
+          </p>
+        </div>
       </section>
 
-      <CredentialSection
-        title="Earned Credentials"
-        credentials={earnedCredentials}
-        emptyText="No earned credentials yet."
-        type="earned"
+      <CredentialCatalogSection
+        credentials={aspnEcosystemRegistry.credentials.core}
+        earnedRegistryMatches={earnedRegistryMatches}
+        eyebrow="Foundational skills"
+        navigate={navigate}
+        title="Core Credentials"
       />
 
-      <CredentialSection
-        title="Available Credentials"
-        credentials={availableCredentials}
-        emptyText="No available credentials for enrolled programs yet."
-        type="available"
+      <CredentialCatalogSection
+        credentials={aspnEcosystemRegistry.credentials.advanced}
+        earnedRegistryMatches={earnedRegistryMatches}
+        eyebrow="Build deeper expertise"
+        navigate={navigate}
+        title="Advanced Credentials"
       />
+
+      {unmatchedEarnedCredentials.length ? (
+        <section className="credential-explorer-section" aria-labelledby="unmatched-credentials-title">
+          <div className="credential-explorer-heading">
+            <div>
+              <span className="credential-explorer-kicker">Earned recognition</span>
+              <h2 id="unmatched-credentials-title">Additional Earned Credentials</h2>
+            </div>
+          </div>
+          <p className="credential-explorer-note">These credentials are earned, but their ecosystem registry connections are not available yet.</p>
+          <div className="credential-unmatched-list">
+            {unmatchedEarnedCredentials.map((credential, index) => (
+              <article key={credential.earnedCredentialID || credential.credentialID || index}>
+                <CredentialIcon name={credential.credentialName} />
+                <div>
+                  <strong>{credential.credentialName || "ASPN Credential"}</strong>
+                  <span>Connection not available yet</span>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
     </div>
   );
 }
 
-function CredentialSection({ title, credentials, emptyText, type }) {
+function CredentialCatalogSection({ credentials, earnedRegistryMatches, eyebrow, navigate, title }) {
+  const sectionId = `${title.toLowerCase().replaceAll(" ", "-")}-title`;
   return (
-    <section className="dashboard-section">
-      <h3>{title}</h3>
-      {!credentials.length ? (
-        <p className="empty-text">{emptyText}</p>
-      ) : (
-        <div className="credential-grid">
-          {credentials.map((credential) => (
-            <CredentialCard credential={credential} key={getCredentialKey(credential)} type={type} />
-          ))}
+    <section className="credential-explorer-section" aria-labelledby={sectionId}>
+      <div className="credential-explorer-heading">
+        <div>
+          <span className="credential-explorer-kicker">{eyebrow}</span>
+          <h2 id={sectionId}>{title}</h2>
         </div>
-      )}
+        <span className="credential-explorer-count">{credentials.length} credentials</span>
+      </div>
+      <div className="credential-explorer-grid">
+        {credentials.map((credential) => (
+          <CredentialExplorerCard
+            credential={credential}
+            earnedCredential={earnedRegistryMatches.get(credential.id) || null}
+            key={credential.id}
+            navigate={navigate}
+          />
+        ))}
+      </div>
     </section>
   );
 }
 
-function CredentialCard({ credential, type }) {
-  const isEarned = type === "earned";
-  const icon = credential.icon || "A";
+function CredentialExplorerCard({ credential, earnedCredential, navigate }) {
+  const pathways = credential.pathwayIds
+    .map((pathwayId) => aspnEcosystemRegistry.pathways.find((pathway) => pathway.id === pathwayId))
+    .filter(Boolean);
+  const programs = aspnEcosystemRegistry.programs.filter((program) => program.credentialIds.includes(credential.id));
+  const roleFamilies = [...new Set(pathways.flatMap((pathway) => pathway.exampleCivicRoleFamilies))].slice(0, 6);
+  const isEarned = Boolean(earnedCredential);
 
   return (
-    <article className="credential-card">
-      <div className="credential-icon" aria-hidden="true">
-        {icon}
-      </div>
-      <div className="credential-content">
-        <div className="credential-card-header">
-          <strong>{credential.credentialName || "Credential"}</strong>
-          <span className={isEarned ? "status-tag enrolled" : "status-tag muted"}>
-            {isEarned ? credential.status || "earned" : credential.status || "locked"}
-          </span>
+    <article className={isEarned ? "credential-explorer-card earned" : "credential-explorer-card"}>
+      <div className="credential-explorer-card-header">
+        <CredentialIcon credential={credential} />
+        <div>
+          <span className="credential-tier">{credential.type === "advanced" ? "Advanced" : "Core"}</span>
+          <h3>{credential.name}</h3>
         </div>
-        <span>{credential.category || "category unavailable"}</span>
-        <p>{credential.description || "No credential description yet."}</p>
-        {isEarned ? (
-          <small>{formatAwardDate(credential.awardedAt || credential.earnedAt)}</small>
-        ) : (
-          <small>{credential.requirementText || "Requirement details are not available yet."}</small>
-        )}
+        <span className={isEarned ? "credential-earned-state earned" : "credential-earned-state"}>
+          {isEarned ? "Earned" : "Explore"}
+        </span>
       </div>
+
+      <p>{credential.description}</p>
+
+      <CredentialContext label={pathways.length === 1 ? "Related pathway" : "Related pathways"} items={pathways.map((pathway) => pathway.name)} />
+      <CredentialContext label="Related programs" items={programs.map((program) => program.name)} emptyText="No related programs listed yet" />
+      <CredentialContext label="Example civic role families" items={roleFamilies} />
+
+      {isEarned ? (
+        <small className="credential-award-date">{formatAwardDate(earnedCredential.awardedAt || earnedCredential.earnedAt)}</small>
+      ) : (
+        <small className="credential-explore-guidance">Explore related programs and learning experiences to understand how this credential can be earned.</small>
+      )}
+      <button className="credential-detail-link" type="button" onClick={() => navigate(`/credentials/${encodeURIComponent(credential.id)}`)}>
+        View credential details
+      </button>
     </article>
   );
 }
 
-function SummaryTile({ label, value }) {
+function CredentialContext({ emptyText, items, label }) {
+  const uniqueItems = [...new Set(items.filter(Boolean))];
   return (
-    <article className="summary-tile">
-      <strong>{value}</strong>
+    <div className="credential-context">
       <span>{label}</span>
-    </article>
+      {uniqueItems.length ? (
+        <div>{uniqueItems.map((item) => <small key={item}>{item}</small>)}</div>
+      ) : (
+        <p>{emptyText}</p>
+      )}
+    </div>
   );
 }
 
-function CredentialsState({ title, message, note }) {
+function CredentialExplorerState({ title, message, note }) {
   return (
     <section className="state-panel">
       <h2>{title}</h2>
@@ -158,35 +215,24 @@ function CredentialsState({ title, message, note }) {
   );
 }
 
-function compareCredentialNames(first, second) {
-  return getCredentialName(first).localeCompare(getCredentialName(second));
+function buildEarnedRegistryMatches(earnedCredentials) {
+  const matches = new Map();
+  for (const earnedCredential of earnedCredentials) {
+    const registryCredential = findAspnRegistryCredentialMatch(earnedCredential);
+    if (registryCredential && !matches.has(registryCredential.id)) {
+      matches.set(registryCredential.id, earnedCredential);
+    }
+  }
+  return matches;
 }
 
-function getCredentialName(credential) {
-  return credential?.credentialName || "Credential";
-}
-
-function getCredentialKey(credential) {
-  return credential.earnedCredentialID || credential.credentialID || getCredentialName(credential);
+function formatAwardDate(value) {
+  if (!value) return "Award date unavailable";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return `Awarded ${date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}`;
 }
 
 function asArray(value) {
   return Array.isArray(value) ? value : [];
-}
-
-function formatAwardDate(value) {
-  if (!value) {
-    return "Award date unavailable";
-  }
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return String(value);
-  }
-
-  return `Awarded ${date.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  })}`;
 }

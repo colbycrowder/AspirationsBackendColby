@@ -3,17 +3,28 @@ import {
   approveStaffServiceHour,
   createOrReviewStaffServiceHourRecord,
   deleteStaffServiceHour,
+  fetchStaffProgramEnrollmentsForProgram,
+  fetchStaffPrograms,
   fetchStaffServiceHours,
   fetchStaffServiceHourTotals,
+  fetchStaffYouthUsers,
   rejectStaffServiceHour,
   updateStaffServiceHourStatus,
 } from "../api.js";
 import { useAuth } from "../auth/AuthContext.jsx";
+import {
+  buildProgramRosterOptions,
+  findYouthByIdentifier,
+  formatYouthName,
+  getUserUid,
+  StaffRosterYouthSelect,
+} from "./StaffRosterYouthSelect.jsx";
 import { formatDate, getRecordId, getStaffPageError, StaffMessage, StaffState, SummaryGrid } from "./staffUi.jsx";
 
 const emptyFilters = { userUID: "", status: "", programId: "", serviceDate: "" };
 const emptyForm = {
-  userUID: "",
+  selectedYouthUid: "",
+  userIdentifier: "",
   programId: "",
   serviceDate: "",
   hours: "",
@@ -25,8 +36,11 @@ export function ServiceHoursManagement() {
   const { user } = useAuth();
   const [filters, setFilters] = useState(emptyFilters);
   const [form, setForm] = useState(emptyForm);
+  const [programRoster, setProgramRoster] = useState([]);
   const [records, setRecords] = useState([]);
   const [totals, setTotals] = useState({});
+  const [programs, setPrograms] = useState([]);
+  const [youthUsers, setYouthUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState("");
   const [message, setMessage] = useState("");
@@ -43,16 +57,22 @@ export function ServiceHoursManagement() {
 
     try {
       const clean = cleanFilters(nextFilters);
-      const [recordData, totalData] = await Promise.all([
+      const [recordData, totalData, programData, youthData] = await Promise.all([
         fetchStaffServiceHours(user, clean),
         fetchStaffServiceHourTotals(user, clean),
+        fetchStaffPrograms(user),
+        fetchStaffYouthUsers(user),
       ]);
       setRecords(recordData);
       setTotals(totalData);
+      setPrograms(programData);
+      setYouthUsers(youthData);
     } catch (nextError) {
       setError(getStaffPageError(nextError));
       setRecords([]);
       setTotals({});
+      setPrograms([]);
+      setYouthUsers([]);
     } finally {
       setLoading(false);
     }
@@ -65,6 +85,12 @@ export function ServiceHoursManagement() {
 
   async function handleCreate(event) {
     event.preventDefault();
+    const serviceHourDetails = buildServiceHourDetails(form, programs, youthUsers);
+    const confirmed = window.confirm(buildCreateServiceHourConfirmation(serviceHourDetails));
+    if (!confirmed) {
+      return;
+    }
+
     setBusy("create");
     setMessage("");
     setError("");
@@ -72,11 +98,14 @@ export function ServiceHoursManagement() {
     try {
       await createOrReviewStaffServiceHourRecord(user, {
         ...form,
+        userIdentifier: serviceHourDetails.userIdentifier,
+        userUID: serviceHourDetails.firebaseUid || serviceHourDetails.userIdentifier,
         hours: Number(form.hours || 0),
         serviceDate: form.serviceDate ? `${form.serviceDate}T00:00:00.000Z` : null,
       });
       setMessage("Service-hour record was created.");
       setForm(emptyForm);
+      setProgramRoster([]);
       await loadServiceHours();
     } catch (nextError) {
       setError(getStaffPageError(nextError));
@@ -85,8 +114,48 @@ export function ServiceHoursManagement() {
     }
   }
 
+  async function handleProgramChange(programId) {
+    setForm((current) => ({
+      ...current,
+      programId,
+      selectedYouthUid: "",
+      userIdentifier: "",
+    }));
+    setProgramRoster([]);
+    setError("");
+    if (!programId) {
+      return;
+    }
+
+    try {
+      setBusy("program-roster");
+      const enrollments = await fetchStaffProgramEnrollmentsForProgram(user, programId);
+      const activeEnrollments = enrollments.filter((enrollment) => String(enrollment.enrollmentStatus || "active").toLowerCase() === "active");
+      setProgramRoster(buildProgramRosterOptions(activeEnrollments, youthUsers));
+    } catch (nextError) {
+      setProgramRoster([]);
+      setError(getStaffPageError(nextError));
+    } finally {
+      setBusy("");
+    }
+  }
+
+  function handleYouthSelect(userIdentifier) {
+    const rosterEntry = programRoster.find((entry) => entry.userIdentifier === userIdentifier);
+    setForm((current) => ({
+      ...current,
+      selectedYouthUid: rosterEntry?.userUID || "",
+      userIdentifier,
+    }));
+  }
+
   async function handleStatus(record, status) {
     const recordId = getServiceHourId(record);
+    const confirmed = window.confirm(buildServiceHourConfirmation({ ...record, verificationStatus: status }, "Update service-hour status"));
+    if (!confirmed) {
+      return;
+    }
+
     setBusy(recordId);
     setMessage("");
     setError("");
@@ -110,6 +179,13 @@ export function ServiceHoursManagement() {
 
   async function handleDelete(record) {
     const recordId = getServiceHourId(record);
+    const confirmed = window.confirm(
+      `Delete this service-hour record for UID ${record.userUID || "unknown youth"} on ${formatDate(record.serviceDate)}? This may affect staff reporting and youth summaries.`
+    );
+    if (!confirmed) {
+      return;
+    }
+
     setBusy(recordId);
     setMessage("");
     setError("");
@@ -155,7 +231,18 @@ export function ServiceHoursManagement() {
           <h3>Filters</h3>
           <FilterForm filters={filters} setFilters={setFilters} onSubmit={handleFilterSubmit} />
           <h3>Create / Review Record</h3>
-          <ServiceHourForm form={form} setForm={setForm} onSubmit={handleCreate} busy={busy === "create"} />
+          <ServiceHourForm
+            busy={busy === "create"}
+            form={form}
+            loadingRoster={busy === "program-roster"}
+            programs={programs}
+            programRoster={programRoster}
+            setForm={setForm}
+            youthUsers={youthUsers}
+            onProgramChange={handleProgramChange}
+            onYouthSelect={handleYouthSelect}
+            onSubmit={handleCreate}
+          />
         </div>
 
         <div className="dashboard-section">
@@ -169,19 +256,21 @@ export function ServiceHoursManagement() {
             {records.length === 0 ? <p>No service-hour records match the current filters.</p> : null}
             {records.map((record) => {
               const recordId = getServiceHourId(record);
+              const youthDetails = getYouthDetails(youthUsers, record.userUID);
               return (
                 <article className="staff-record-card" key={recordId}>
                   <strong>{record.description || "Service-hour record"}</strong>
-                  <span>{record.userUID || "Unknown youth"} · {record.programId || "No program"}</span>
+                  <span>{youthDetails.youthName} · {youthDetails.youthEmail || "Email not listed"}</span>
+                  <span>{getProgramNameById(programs, record.programId)}</span>
                   <span>{formatDate(record.serviceDate)} · {record.hours ?? 0} hours · {record.verificationStatus || "pending"}</span>
                   <div className="staff-inline-actions">
                     {["pending", "verified", "rejected"].map((status) => (
                       <button className="text-action" disabled={busy === recordId} key={status} type="button" onClick={() => handleStatus(record, status)}>
-                        {status}
+                        Mark {formatStatus(status)}
                       </button>
                     ))}
                     <button className="text-action danger" disabled={busy === recordId} type="button" onClick={() => handleDelete(record)}>
-                      Delete
+                      Delete Service-Hour Record
                     </button>
                   </div>
                 </article>
@@ -211,11 +300,55 @@ function FilterForm({ filters, setFilters, onSubmit }) {
   );
 }
 
-function ServiceHourForm({ form, setForm, onSubmit, busy }) {
+function ServiceHourForm({
+  form,
+  setForm,
+  onSubmit,
+  busy,
+  loadingRoster,
+  programs,
+  programRoster,
+  youthUsers,
+  onProgramChange,
+  onYouthSelect,
+}) {
+  const serviceHourDetails = buildServiceHourDetails(form, programs, youthUsers);
+  const canCreate = Boolean(
+    !busy &&
+    serviceHourDetails.userIdentifier &&
+    form.programId &&
+    form.serviceDate &&
+    form.hours !== "" &&
+    Number(form.hours) >= 0 &&
+    form.verificationStatus
+  );
+
   return (
     <form className="compact-form" onSubmit={onSubmit}>
-      <input required placeholder="Youth UID" value={form.userUID} onChange={(event) => setForm({ ...form, userUID: event.target.value })} />
-      <input required placeholder="Program ID" value={form.programId} onChange={(event) => setForm({ ...form, programId: event.target.value })} />
+      <label>
+        Program
+        <select required value={form.programId} onChange={(event) => onProgramChange(event.target.value)}>
+          <option value="">Select an active program</option>
+          {programs.filter(isActiveProgram).map((program) => {
+            const programId = getProgramId(program);
+            return (
+              <option key={programId || getProgramName(program)} value={programId}>
+                {getProgramOptionLabel(program)}
+              </option>
+            );
+          })}
+        </select>
+      </label>
+      <StaffRosterYouthSelect
+        formProgramId={form.programId}
+        loadingRoster={loadingRoster}
+        programRoster={programRoster}
+        value={form.userIdentifier}
+        onYouthSelect={onYouthSelect}
+      />
+      {form.programId && !loadingRoster && !programRoster.length ? (
+        <p className="empty-text">No active enrolled youth found for this program. Confirm the program roster in Program Management before creating service hours.</p>
+      ) : null}
       <input required type="date" value={form.serviceDate} onChange={(event) => setForm({ ...form, serviceDate: event.target.value })} />
       <input min="0" required step="0.25" type="number" placeholder="Hours" value={form.hours} onChange={(event) => setForm({ ...form, hours: event.target.value })} />
       <select value={form.verificationStatus} onChange={(event) => setForm({ ...form, verificationStatus: event.target.value })}>
@@ -224,7 +357,21 @@ function ServiceHourForm({ form, setForm, onSubmit, busy }) {
         <option value="rejected">rejected</option>
       </select>
       <textarea placeholder="Description" rows="3" value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} />
-      <button className="primary-action" disabled={busy} type="submit">{busy ? "Saving..." : "Create Record"}</button>
+      <section className="staff-detail-panel" aria-label="Service-hour confirmation details">
+        <h4>Confirm Service-Hour Details</h4>
+        <dl className="staff-detail-list">
+          <div><dt>Youth Name</dt><dd>{serviceHourDetails.youthName || "Not resolved yet"}</dd></div>
+          <div><dt>Youth Email</dt><dd>{serviceHourDetails.youthEmail || "Not resolved yet"}</dd></div>
+          <div><dt>Program Name</dt><dd>{serviceHourDetails.programName || "Select a program"}</dd></div>
+          <div><dt>Service Date</dt><dd>{serviceHourDetails.serviceDate || "Select a service date"}</dd></div>
+          <div><dt>Hours</dt><dd>{serviceHourDetails.hours || "Enter hours"}</dd></div>
+          <div><dt>Verification Status</dt><dd>{serviceHourDetails.verificationStatus || "pending"}</dd></div>
+        </dl>
+        {form.verificationStatus === "verified" ? (
+          <p className="empty-text">Verified hours may appear in youth Home and My Journey summaries.</p>
+        ) : null}
+      </section>
+      <button className="primary-action" disabled={!canCreate} type="submit">{busy ? "Saving..." : "Create Record"}</button>
     </form>
   );
 }
@@ -235,4 +382,109 @@ function cleanFilters(filters) {
 
 function getServiceHourId(record) {
   return getRecordId(record, ["serviceHourRecordId", "serviceHourRecordID"]);
+}
+
+function buildServiceHourConfirmation(record, action) {
+  const lines = [
+    `${action}?`,
+    "",
+    `Youth UID: ${record.userUID || "Not entered"}`,
+    `Program: ${getProgramNameById([], record.programId)}`,
+    `Service date: ${record.serviceDate ? formatDate(record.serviceDate) : "Not entered"}`,
+    `Hours: ${record.hours ?? "Not entered"}`,
+    `Verification status: ${record.verificationStatus || "pending"}`,
+  ];
+
+  if (record.verificationStatus === "verified") {
+    lines.push("", "Verified hours may appear in youth Home and My Journey summaries.");
+  }
+
+  return lines.join("\n");
+}
+
+function buildCreateServiceHourConfirmation(details) {
+  const lines = [
+    "Create service-hour record?",
+    "",
+    `Youth name: ${details.youthName || "Not resolved"}`,
+    `Youth email: ${details.youthEmail || "Not resolved"}`,
+    `Program name: ${details.programName || "Not selected"}`,
+    `Service date: ${details.serviceDate || "Not selected"}`,
+    `Hours: ${details.hours || "Not entered"}`,
+    `Verification status: ${details.verificationStatus || "pending"}`,
+  ];
+
+  if (details.verificationStatus === "verified") {
+    lines.push("", "Verified hours may appear in youth Home and My Journey summaries.");
+  }
+
+  return lines.join("\n");
+}
+
+function buildServiceHourDetails(form, programs, youthUsers) {
+  const userIdentifier = getUserIdentifier(form);
+  const youth = findYouthByIdentifier(youthUsers, userIdentifier);
+  const program = programs.find((item) => getProgramId(item) === form.programId);
+
+  return {
+    userIdentifier,
+    youthName: youth ? formatYouthName(youth) : "",
+    youthEmail: youth?.email || "",
+    aspnParticipantId: youth?.aspnParticipantId || (isAspnParticipantId(userIdentifier) ? userIdentifier : ""),
+    firebaseUid: youth ? getUserUid(youth) : (isAspnParticipantId(userIdentifier) ? "" : userIdentifier),
+    programName: program ? getProgramName(program) : "",
+    programId: form.programId,
+    serviceDate: form.serviceDate,
+    hours: form.hours,
+    verificationStatus: form.verificationStatus || "pending",
+  };
+}
+
+function getUserIdentifier(form) {
+  return (form.userIdentifier || form.selectedYouthUid || form.userUID || "").trim();
+}
+
+function isAspnParticipantId(value) {
+  return value.trim().toUpperCase().startsWith("ASPN-");
+}
+
+function getProgramId(program) {
+  return program?.programId || program?.programID || "";
+}
+
+function getProgramName(program) {
+  return program?.programName || program?.title || program?.name || getProgramId(program) || "Untitled program";
+}
+
+function getProgramOptionLabel(program) {
+  return `${getProgramName(program)} — ${program?.programStatus || program?.status || "active"}`;
+}
+
+function getProgramNameById(programs, programId) {
+  const program = programs.find((item) => getProgramId(item) === programId);
+  return program ? getProgramName(program) : "Program not listed";
+}
+
+function isActiveProgram(program) {
+  return String(program?.programStatus || program?.status || "active").toLowerCase() === "active";
+}
+
+function getYouthDetails(youthUsers, userUID) {
+  const youth = youthUsers.find((item) => getUserUid(item) === userUID);
+  if (!youth) {
+    return {
+      youthName: userUID || "Unknown youth",
+      youthEmail: "",
+    };
+  }
+
+  return {
+    youthName: formatYouthName(youth),
+    youthEmail: youth.email || "",
+  };
+}
+
+function formatStatus(value) {
+  const text = String(value || "").trim();
+  return text ? text.charAt(0).toUpperCase() + text.slice(1) : "Status";
 }

@@ -80,7 +80,7 @@ export function StaffMetricsDashboard({ metrics: providedMetrics }) {
       <section className="page-intro">
         <span className="eyebrow">Staff/Admin</span>
         <h2>Platform Metrics</h2>
-        <p>Read-only pilot preparation metrics from the protected backend staff endpoint.</p>
+        <p>Use Platform Metrics for simple current totals across users, programs, credentials, attendance, service hours, learning, and unread notifications.</p>
       </section>
 
       <section className="staff-metrics-grid" aria-label="Platform metrics">

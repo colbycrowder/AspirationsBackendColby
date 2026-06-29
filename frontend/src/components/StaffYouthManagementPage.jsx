@@ -1,13 +1,28 @@
 import { useEffect, useMemo, useState } from "react";
-import { ApiAccessError, fetchStaffYouthUsers, updateStaffYouthUser } from "../api.js";
+import {
+  ApiAccessError,
+  fetchStaffPrograms,
+  fetchStaffYouthDuplicateProfileGroups,
+  fetchStaffYouthDuplicateProfiles,
+  fetchStaffYouthStudentRecord,
+  fetchStaffYouthUsers,
+  updateStaffYouthUser,
+} from "../api.js";
 import { useAuth } from "../auth/AuthContext.jsx";
+import { getUniqueEarnedCredentials } from "../utils/credentialDeduplication.js";
 
 const profileStatuses = ["pending_onboarding", "active", "inactive"];
 
 export function StaffYouthManagementPage() {
   const { user } = useAuth();
   const [youthUsers, setYouthUsers] = useState([]);
+  const [programs, setPrograms] = useState([]);
   const [selectedUid, setSelectedUid] = useState("");
+  const [studentRecord, setStudentRecord] = useState(null);
+  const [duplicateGroups, setDuplicateGroups] = useState([]);
+  const [duplicateProfiles, setDuplicateProfiles] = useState([]);
+  const [recordLoading, setRecordLoading] = useState(false);
+  const [duplicateLoading, setDuplicateLoading] = useState(false);
   const [form, setForm] = useState({
     profileStatus: "pending_onboarding",
     staffReviewRequired: true,
@@ -24,12 +39,14 @@ export function StaffYouthManagementPage() {
   }, [user]);
 
   const selectedUser = useMemo(
-    () => youthUsers.find((item) => getUserUid(item) === selectedUid) || null,
+    () => youthUsers.find((item) => getYouthSelectionKey(item) === selectedUid) || null,
     [selectedUid, youthUsers]
   );
 
   useEffect(() => {
     if (!selectedUser) {
+      setStudentRecord(null);
+      setDuplicateProfiles([]);
       return;
     }
 
@@ -38,6 +55,10 @@ export function StaffYouthManagementPage() {
       staffReviewRequired: Boolean(selectedUser.staffReviewRequired),
       staffVerified: Boolean(selectedUser.staffVerified),
     });
+    const identifier = getStudentRecordIdentifier(selectedUser);
+    loadStudentRecord(identifier);
+    loadDuplicateProfiles(identifier);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedUser]);
 
   async function loadYouthUsers() {
@@ -46,20 +67,62 @@ export function StaffYouthManagementPage() {
     setMessage("");
 
     try {
-      const users = await fetchStaffYouthUsers(user);
+      const [users, activePrograms] = await Promise.all([
+        fetchStaffYouthUsers(user),
+        fetchStaffPrograms(user),
+      ]);
+      const groups = await fetchStaffYouthDuplicateProfileGroups(user).catch(() => []);
       setYouthUsers(users);
+      setPrograms(activePrograms);
+      setDuplicateGroups(Array.isArray(groups) ? groups : []);
       setSelectedUid((currentUid) => {
-        if (currentUid && users.some((item) => getUserUid(item) === currentUid)) {
+        if (currentUid && users.some((item) => getYouthSelectionKey(item) === currentUid)) {
           return currentUid;
         }
-        return users[0] ? getUserUid(users[0]) : "";
+        return users[0] ? getYouthSelectionKey(users[0]) : "";
       });
     } catch (nextError) {
       setError(getStaffPageError(nextError));
       setYouthUsers([]);
+      setPrograms([]);
+      setDuplicateGroups([]);
       setSelectedUid("");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadStudentRecord(uid = selectedUid) {
+    if (!uid) {
+      setStudentRecord(null);
+      return;
+    }
+
+    setRecordLoading(true);
+    try {
+      setStudentRecord(normalizeStudentRecordResponse(await fetchStaffYouthStudentRecord(user, uid)));
+    } catch (nextError) {
+      setStudentRecord(null);
+      setError(getStaffPageError(nextError));
+    } finally {
+      setRecordLoading(false);
+    }
+  }
+
+  async function loadDuplicateProfiles(uid = selectedUid) {
+    if (!uid) {
+      setDuplicateProfiles([]);
+      return;
+    }
+
+    setDuplicateLoading(true);
+    try {
+      const duplicates = await fetchStaffYouthDuplicateProfiles(user, uid);
+      setDuplicateProfiles(Array.isArray(duplicates) ? duplicates : []);
+    } catch (nextError) {
+      setDuplicateProfiles([]);
+    } finally {
+      setDuplicateLoading(false);
     }
   }
 
@@ -128,15 +191,15 @@ export function StaffYouthManagementPage() {
 
             <div className="staff-record-list" aria-label="Youth profiles">
               {youthUsers.map((youthUser) => {
-                const uid = getUserUid(youthUser);
-                const isSelected = selectedUid === uid;
+                const selectionKey = getYouthSelectionKey(youthUser);
+                const isSelected = selectedUid === selectionKey;
 
                 return (
                   <button
                     className={isSelected ? "staff-record-card selected" : "staff-record-card"}
-                    key={uid || youthUser.email}
+                    key={selectionKey || youthUser.email}
                     type="button"
-                    onClick={() => setSelectedUid(uid)}
+                    onClick={() => setSelectedUid(selectionKey)}
                   >
                     <strong>{getUserDisplayName(youthUser)}</strong>
                     <span>{youthUser.email || "Email not added"}</span>
@@ -146,6 +209,8 @@ export function StaffYouthManagementPage() {
                 );
               })}
             </div>
+
+            <DuplicateProfileReviewPanel groups={duplicateGroups} />
           </div>
 
           <div className="dashboard-section">
@@ -228,14 +293,190 @@ export function StaffYouthManagementPage() {
                   <button className="text-action" disabled={saving} type="button" onClick={loadYouthUsers}>
                     Refresh
                   </button>
+                  <button
+                    className="text-action"
+                    disabled={recordLoading || duplicateLoading}
+                    type="button"
+                    onClick={() => {
+                      const identifier = getStudentRecordIdentifier(selectedUser);
+                      loadStudentRecord(identifier);
+                      loadDuplicateProfiles(identifier);
+                    }}
+                  >
+                    {recordLoading ? "Loading record..." : "Refresh Student Record"}
+                  </button>
                 </div>
               </form>
             ) : (
               <p>Select a youth profile to review.</p>
             )}
+
+            {selectedUser ? (
+              <>
+                <DuplicateProfileWarning
+                  duplicates={duplicateProfiles}
+                  loading={duplicateLoading}
+                />
+                <StudentRecordPanel
+                  loading={recordLoading}
+                  programs={programs}
+                  record={studentRecord}
+                  selectedUser={selectedUser}
+                />
+              </>
+            ) : null}
           </div>
         </section>
       )}
+    </div>
+  );
+}
+
+function DuplicateProfileReviewPanel({ groups }) {
+  return (
+    <section className="duplicate-review-panel" aria-labelledby="duplicate-review-title">
+      <div className="section-header">
+        <div>
+          <h3 id="duplicate-review-title">Duplicate Profile Review</h3>
+          <p>Review only. Do not merge, archive, or delete profiles during pilot validation.</p>
+        </div>
+      </div>
+
+      {groups.length ? (
+        <div className="duplicate-review-groups">
+          {groups.map((group, groupIndex) => (
+            <div className="duplicate-review-group" key={`${group.matchType}-${group.matchValue}-${groupIndex}`}>
+              <div className="duplicate-review-group-header">
+                <strong>{group.reason || "Possible duplicate match"}</strong>
+                <span>{group.matchValue || "Match value unavailable"}</span>
+              </div>
+
+              <div className="duplicate-profile-list">
+                {getRecordArray(group, ["profiles"]).map((profile) => (
+                  <DuplicateProfileSummaryCard
+                    key={profile.uid || profile.email || profile.aspnParticipantId}
+                    profile={profile}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="empty-text">No possible duplicate profile groups detected.</p>
+      )}
+
+      <p className="helper-text">
+        Use the existing youth selection and Student Record panel to inspect records manually.
+      </p>
+    </section>
+  );
+}
+
+function DuplicateProfileWarning({ duplicates, loading }) {
+  if (loading || !duplicates.length) {
+    return null;
+  }
+
+  return (
+    <section className="duplicate-profile-warning" aria-labelledby="duplicate-profile-warning-title">
+      <div>
+        <span className="status-tag warning">Review recommended</span>
+        <h3 id="duplicate-profile-warning-title">Possible duplicate profile found</h3>
+        <p>
+          This youth may have another profile with the same email or ASPN Participant ID.
+        </p>
+        <p>
+          Do not delete or merge profiles during pilot validation. Use the Student Record panel to confirm which
+          profile contains records.
+        </p>
+      </div>
+
+      <div className="duplicate-profile-list">
+        {duplicates.map((duplicate) => (
+          <DuplicateProfileSummaryCard
+            key={duplicate.uid || duplicate.email || duplicate.aspnParticipantId}
+            profile={duplicate}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function DuplicateProfileSummaryCard({ profile }) {
+  return (
+    <div className="duplicate-profile-card">
+      <strong>{profile.name || "Unnamed youth"}</strong>
+      <span>{profile.email || "Email not added"}</span>
+      <span>ASPN Participant ID: {profile.aspnParticipantId || "Not assigned"}</span>
+      <span>UID: {profile.uid || "UID missing"}</span>
+      <span>Status: {formatLabel(profile.profileStatus || "status missing")}</span>
+      <span>Staff verified: {profile.staffVerified ? "Yes" : "No"}</span>
+      <span>Dashboard records: {profile.dashboardRecordsAvailable ? "Appear to exist" : "Not detected"}</span>
+    </div>
+  );
+}
+
+function StudentRecordPanel({ loading, programs, record, selectedUser }) {
+  const credentials = getUniqueEarnedCredentials(getRecordArray(record, ["earnedCredentials", "credentials"]));
+  const attendance = getStudentAttendanceRecords(getRecordArray(record, ["attendanceRecords", "attendance"]));
+  const serviceHours = getRecordArray(record, ["serviceHourRecords", "serviceHours"]);
+
+  return (
+    <section className="staff-detail-panel student-record-panel" aria-labelledby="student-record-title">
+      <div className="section-header">
+        <div>
+          <h3 id="student-record-title">Student Record</h3>
+          <p>Attendance, service hours, and credentials for {getUserDisplayName(selectedUser)}.</p>
+        </div>
+      </div>
+
+      {loading ? <p>Loading student record...</p> : null}
+
+      {!loading ? (
+        <>
+          <RecordSection title="Credentials" emptyMessage="No credentials awarded yet.">
+            {credentials.map((credential, index) => (
+              <div className="student-record-row" key={credential.earnedCredentialID || credential.credentialID || index}>
+                <strong>{credential.credentialName || "ASPN Credential"}</strong>
+                <span>{credential.category || "Category not listed"}</span>
+                <span>{formatRecordDate(credential.awardedAt || credential.earnedAt)}</span>
+              </div>
+            ))}
+          </RecordSection>
+
+          <RecordSection title="Attendance" emptyMessage="No attendance records yet.">
+            {attendance.map((item, index) => (
+              <div className="student-record-row" key={item.attendanceRecordID || `${item.programID}-${item.eventDate}-${index}`}>
+                <strong>{formatRecordDate(item.eventDate)}</strong>
+                <span>{getProgramName(programs, item.programID)}</span>
+                <span>{item.eventName || "Attendance session"} · {formatLabel(item.attendanceStatus || "pending")}</span>
+              </div>
+            ))}
+          </RecordSection>
+
+          <RecordSection title="Service Hours" emptyMessage="No service-hour records yet.">
+            {serviceHours.map((item, index) => (
+              <div className="student-record-row" key={item.serviceHourRecordId || `${item.programId}-${item.serviceDate}-${index}`}>
+                <strong>{formatRecordDate(item.serviceDate)}</strong>
+                <span>{getProgramName(programs, item.programId)}</span>
+                <span>{formatHours(item.hours)} hours · {formatLabel(item.verificationStatus || "pending")}</span>
+              </div>
+            ))}
+          </RecordSection>
+        </>
+      ) : null}
+    </section>
+  );
+}
+
+function RecordSection({ children, emptyMessage, title }) {
+  const items = Array.isArray(children) ? children.filter(Boolean) : children ? [children] : [];
+  return (
+    <div className="student-record-section">
+      <h4>{title}</h4>
+      {items.length ? <div className="student-record-list">{items}</div> : <p className="empty-text">{emptyMessage}</p>}
     </div>
   );
 }
@@ -250,12 +491,96 @@ function StaffState({ title, message }) {
 }
 
 function getUserUid(user) {
-  return user?.uid || user?.userUID || "";
+  return user?.uid || user?.userUID || user?.userUid || user?.id || "";
+}
+
+function getYouthSelectionKey(user) {
+  return getUserUid(user) || user?.aspnParticipantId || user?.email || "";
+}
+
+function getStudentRecordIdentifier(user) {
+  return getUserUid(user) || user?.aspnParticipantId || user?.email || "";
+}
+
+function normalizeStudentRecordResponse(record) {
+  if (!record || typeof record !== "object") {
+    return {
+      earnedCredentials: [],
+      attendanceRecords: [],
+      serviceHourRecords: [],
+    };
+  }
+
+  return {
+    ...record,
+    earnedCredentials: getRecordArray(record, ["earnedCredentials", "credentials"]),
+    attendanceRecords: getRecordArray(record, ["attendanceRecords", "attendance"]),
+    serviceHourRecords: getRecordArray(record, ["serviceHourRecords", "serviceHours"]),
+  };
+}
+
+function getRecordArray(record, fieldNames) {
+  if (!record) {
+    return [];
+  }
+
+  for (const fieldName of fieldNames) {
+    if (Array.isArray(record[fieldName])) {
+      return record[fieldName];
+    }
+  }
+
+  return [];
 }
 
 function getUserDisplayName(user) {
   const fullName = [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim();
   return fullName || user?.email || "Unnamed youth";
+}
+
+function getStudentAttendanceRecords(records) {
+  return [...records]
+    .sort((left, right) => compareRecordDates(right.eventDate, left.eventDate));
+}
+
+function getProgramName(programs, programId) {
+  if (!programId) {
+    return "Program not listed";
+  }
+  const program = programs.find((item) => item.programId === programId || item.programID === programId);
+  return program?.programName || program?.title || program?.name || "Program not listed";
+}
+
+function formatRecordDate(value) {
+  const date = parseRecordDate(value);
+  if (!date) {
+    return "Date not listed";
+  }
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+
+function parseRecordDate(value) {
+  if (!value) return null;
+  if (typeof value === "object" && value.seconds) {
+    const firestoreDate = new Date(value.seconds * 1000);
+    return Number.isNaN(firestoreDate.getTime()) ? null : firestoreDate;
+  }
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function compareRecordDates(left, right) {
+  const leftDate = parseRecordDate(left);
+  const rightDate = parseRecordDate(right);
+  if (leftDate && rightDate) return leftDate.getTime() - rightDate.getTime();
+  if (leftDate) return -1;
+  if (rightDate) return 1;
+  return 0;
+}
+
+function formatHours(value) {
+  const hours = Number(value || 0);
+  return Number.isInteger(hours) ? String(hours) : hours.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
 }
 
 function formatLabel(value) {

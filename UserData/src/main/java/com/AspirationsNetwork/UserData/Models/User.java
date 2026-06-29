@@ -10,6 +10,7 @@ import java.util.List;
 @Getter
 @Setter
 public class User {
+    private String id;
     private String uid;
     private String accountType;
     private String affiliation;
@@ -18,6 +19,8 @@ public class User {
     private String firstName;
     private String lastName;
     private String email;
+    private String userName;
+    private String bio;
     private String avatar;
     private String profileImageUrl;
     private String role;

@@ -53,7 +53,7 @@ export function OperationsReporting() {
       <section className="page-intro">
         <span className="eyebrow">Staff/Admin</span>
         <h2>Operations Reporting</h2>
-        <p>Read-only reporting from the staff operation event log.</p>
+        <p>Use Operations Reporting to review recorded staff/admin actions by action type, staff UID, target type, and recent activity window.</p>
       </section>
 
       <SummaryGrid

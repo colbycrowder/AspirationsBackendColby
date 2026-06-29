@@ -58,7 +58,7 @@ export function StaffDashboard({ metrics: providedMetrics, navigate }) {
       <section className="page-intro">
         <span className="eyebrow">Staff/Admin</span>
         <h2>Staff Dashboard</h2>
-        <p>Operational snapshot for pilot staff using protected backend reporting endpoints.</p>
+        <p>Start here for a quick operational snapshot, then open the specific staff module or report that matches the question you need to answer.</p>
       </section>
 
       <SummaryGrid
@@ -77,7 +77,7 @@ export function StaffDashboard({ metrics: providedMetrics, navigate }) {
         <div className="section-header">
           <div>
             <h3>Staff Work Areas</h3>
-            <p>Use the staff modules to manage pilot records without opening Firestore directly.</p>
+            <p>Use management modules for record work. Use Readiness for launch blockers, Reporting for participation, Metrics for simple totals, Pilot Metrics for engagement, Evaluation for outcomes, and Operations Reporting for staff activity.</p>
           </div>
         </div>
         <div className="staff-action-grid">

@@ -13,7 +13,7 @@ export function RwdLearningCenterPage() {
   useEffect(() => {
     let isActive = true;
 
-    async function loadRwdLearningCenter() {
+    async function loadLearningCenter() {
       setLoading(true);
       setError("");
       setMessage("");
@@ -35,19 +35,19 @@ export function RwdLearningCenterPage() {
       }
     }
 
-    loadRwdLearningCenter();
-
+    loadLearningCenter();
     return () => {
       isActive = false;
     };
   }, [user]);
 
-  const items = useMemo(
-    () => asArray(dashboard?.rwdLearningCenter).sort(compareRwdItems),
-    [dashboard]
-  );
+  const items = useMemo(() => asArray(dashboard?.rwdLearningCenter).sort(compareLearningItems), [dashboard]);
   const completedCount = items.filter((item) => getProgressStatus(item) === "completed").length;
   const inProgressCount = items.filter((item) => getProgressStatus(item) === "in_progress").length;
+  const connectedCredentialCount = items.filter((item) => hasText(item.associatedCredentialId)).length;
+  const nextExperience = items.find((item) => getProgressStatus(item) === "in_progress")
+    || items.find((item) => getProgressStatus(item) === "not_started")
+    || null;
 
   async function handleProgressUpdate(item, completionStatus) {
     setError("");
@@ -61,7 +61,7 @@ export function RwdLearningCenterPage() {
       });
       const data = await fetchYouthDashboard(user);
       setDashboard(data);
-      setMessage(`${item.title || item.countryName || "RWD activity"} marked ${formatStatus(completionStatus)}.`);
+      setMessage(`${item.title || item.countryName || "Global Civic Movements activity"} marked ${formatStatus(completionStatus)}.`);
     } catch (nextError) {
       setError(nextError.message);
     } finally {
@@ -69,118 +69,104 @@ export function RwdLearningCenterPage() {
     }
   }
 
+  function trackLearningView(item) {
+    trackPlatformEvent(user, "RWD_ACTIVITY_VIEWED", { activityId: item.rwdActivityId }).catch(() => {});
+  }
+
   if (loading) {
-    return <RwdState title="Loading RWD Learning Center" message="Retrieving available RWD learning items." />;
+    return <LearningState title="Loading Global Civic Movements" message="Retrieving available learning experiences." />;
   }
 
   if (error && !dashboard) {
     return (
-      <RwdState
-        title="RWD Learning Center unavailable"
+      <LearningState
+        title="Global Civic Movements unavailable"
         message={error}
-        note="If this is a new Firebase account, ASPN may still need to create the matching Firestore profile document."
+        note="If this is a new Firebase account, complete your ASPN profile before opening the Learning Center."
       />
     );
   }
 
   return (
-    <div className="rwd-stack">
-      <section className="page-intro">
-        <span className="eyebrow">RWD Learning Center</span>
-        <h2>Movement Map Activities</h2>
-        <p>
-          Open externally hosted RWD learning items, track completion status, and see linked credential information when
-          available.
-        </p>
+    <div className="learning-page">
+      <section className="learning-hero">
+        <span className="learning-kicker">Learning Center</span>
+        <h1>Global Civic Movements</h1>
+        <p>Explore youth movements around the world and build civic knowledge through guided learning experiences.</p>
       </section>
 
-      <section className="credential-summary-grid" aria-label="RWD progress summary">
-        <SummaryTile label="Available Items" value={items.length} />
-        <SummaryTile label="In Progress" value={inProgressCount} />
-        <SummaryTile label="Completed" value={completedCount} />
+      <section className="learning-section" aria-labelledby="learning-summary-title">
+        <div className="learning-section-heading">
+          <div>
+            <span className="learning-kicker">Your learning</span>
+            <h2 id="learning-summary-title">Learning Summary</h2>
+          </div>
+        </div>
+        <div className="learning-summary-grid">
+          <LearningSummaryCard label="Completed Experiences" value={completedCount} />
+          <LearningSummaryCard label="Available Experiences" value={items.length} />
+          <LearningSummaryCard label="In Progress" value={inProgressCount} />
+          <LearningSummaryCard label="Credentials Connected" value={connectedCredentialCount} />
+        </div>
       </section>
 
-      {message ? <MessagePanel tone="success" message={message} /> : null}
-      {error ? <MessagePanel tone="error" message={error} /> : null}
+      {message ? <LearningMessage tone="success" message={message} /> : null}
+      {error ? <LearningMessage tone="error" message={error} /> : null}
 
-      <section className="dashboard-section">
-        <h3>Learning Items</h3>
+      <section className="learning-section" aria-labelledby="continue-learning-title">
+        <div className="learning-section-heading">
+          <div>
+            <span className="learning-kicker">Next step</span>
+            <h2 id="continue-learning-title">Continue Learning</h2>
+          </div>
+        </div>
         {!items.length ? (
-          <p className="empty-text">No RWD learning items are available yet.</p>
+          <LearningEmptyState message="No Global Civic Movements activities are available yet." />
+        ) : nextExperience ? (
+          <article className="learning-featured-card">
+            <div>
+              <span className="learning-country">{nextExperience.countryName || "Global learning"}</span>
+              <h3>{nextExperience.title || "Global Civic Movements experience"}</h3>
+              <p>{nextExperience.description || "Continue this guided civic learning experience."}</p>
+            </div>
+            <div className="learning-featured-actions">
+              <StatusBadge status={getProgressStatus(nextExperience)} />
+              {nextExperience.externalUrl ? (
+                <a href={nextExperience.externalUrl} target="_blank" rel="noreferrer" onClick={() => trackLearningView(nextExperience)}>
+                  Open experience (opens in new tab)
+                </a>
+              ) : (
+                <span className="learning-link-unavailable">External link unavailable</span>
+              )}
+            </div>
+          </article>
         ) : (
-          <div className="rwd-grid">
-            {items.map((item) => {
-              const status = getProgressStatus(item);
-              const progress = item.progress || {};
-              const isSaving = savingActivityId === item.rwdActivityId;
+          <LearningEmptyState message="You have completed every available Global Civic Movements experience." />
+        )}
+      </section>
 
-              return (
-                <article className="rwd-card" key={item.rwdActivityId || item.title || item.countryName}>
-                  <div className="rwd-card-header">
-                    <div>
-                      <span className="eyebrow">{item.countryName || "Country unavailable"}</span>
-                      <h3>{item.title || "RWD activity"}</h3>
-                    </div>
-                    <span className={getStatusClass(status)}>{formatStatus(status)}</span>
-                  </div>
+      <section className="learning-section" aria-labelledby="learning-experiences-title">
+        <div className="learning-section-heading">
+          <div>
+            <span className="learning-kicker">Explore the world</span>
+            <h2 id="learning-experiences-title">Learning Experiences</h2>
+          </div>
+          {items.length ? <span className="learning-count">{items.length} available</span> : null}
+        </div>
 
-                  <p>{item.description || "No activity description is available yet."}</p>
-
-                  <div className="progress-track" aria-label={`Progress ${getProgressPercent(status)} percent`}>
-                    <span style={{ width: `${getProgressPercent(status)}%` }} />
-                  </div>
-
-                  <dl className="program-meta">
-                    <div>
-                      <dt>Quiz</dt>
-                      <dd>{formatQuiz(progress)}</dd>
-                    </div>
-                    <div>
-                      <dt>Credential</dt>
-                      <dd>{item.associatedCredentialId || "No linked credential listed"}</dd>
-                    </div>
-                    <div>
-                      <dt>Completed</dt>
-                      <dd>{formatDate(progress.completedAt)}</dd>
-                    </div>
-                  </dl>
-
-                  <div className="rwd-actions">
-                    {item.externalUrl ? (
-                      <a
-                        className="primary-action link-action"
-                        href={item.externalUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        onClick={() =>
-                          trackPlatformEvent(user, "RWD_ACTIVITY_VIEWED", {
-                            activityId: item.rwdActivityId,
-                          }).catch(() => {})
-                        }
-                      >
-                        Open Activity
-                      </a>
-                    ) : null}
-                    <button
-                      className="text-action"
-                      disabled={isSaving || status === "in_progress" || status === "completed"}
-                      type="button"
-                      onClick={() => handleProgressUpdate(item, "in_progress")}
-                    >
-                      {isSaving ? "Saving..." : "Mark In Progress"}
-                    </button>
-                    <button
-                      className="text-action"
-                      disabled={isSaving || status === "completed"}
-                      type="button"
-                      onClick={() => handleProgressUpdate(item, "completed")}
-                    >
-                      {isSaving ? "Saving..." : "Mark Completed"}
-                    </button>
-                  </div>
-                </article>
-              );
-            })}
+        {!items.length ? (
+          <LearningEmptyState message="No Global Civic Movements activities are available yet." />
+        ) : (
+          <div className="learning-card-grid">
+            {items.map((item) => (
+              <LearningExperienceCard
+                item={item}
+                isSaving={savingActivityId === item.rwdActivityId}
+                key={item.rwdActivityId || item.title || item.countryName}
+                onProgressUpdate={handleProgressUpdate}
+                onView={trackLearningView}
+              />
+            ))}
           </div>
         )}
       </section>
@@ -188,24 +174,83 @@ export function RwdLearningCenterPage() {
   );
 }
 
-function SummaryTile({ label, value }) {
+function LearningExperienceCard({ isSaving, item, onProgressUpdate, onView }) {
+  const status = getProgressStatus(item);
+  const progress = item.progress || {};
+
   return (
-    <article className="summary-tile">
+    <article className={`learning-card status-${status}`}>
+      <div className="learning-card-header">
+        <div>
+          <span className="learning-country">{item.countryName || "Global learning"}</span>
+          <h3>{item.title || "Global Civic Movements experience"}</h3>
+        </div>
+        <StatusBadge status={status} />
+      </div>
+
+      <p>{item.description || "No experience description is available yet."}</p>
+
+      <div className="learning-card-details">
+        {hasText(item.associatedCredentialId) ? (
+          <span>Connected credential: {item.associatedCredentialId}</span>
+        ) : (
+          <span>No connected credential listed</span>
+        )}
+        {progress.quizScore !== null && progress.quizScore !== undefined ? (
+          <span>Quiz: {progress.quizScore}% · {progress.passed ? "Passed" : "Not passed"}</span>
+        ) : null}
+        {progress.completedAt ? <span>Completed {formatDate(progress.completedAt)}</span> : null}
+      </div>
+
+      <div className="learning-actions">
+        {item.externalUrl ? (
+          <a href={item.externalUrl} target="_blank" rel="noreferrer" onClick={() => onView(item)}>
+            Open experience (opens in new tab)
+          </a>
+        ) : (
+          <span className="learning-link-unavailable">External link unavailable</span>
+        )}
+        <button
+          disabled={isSaving || status === "in_progress" || status === "completed"}
+          type="button"
+          onClick={() => onProgressUpdate(item, "in_progress")}
+        >
+          {isSaving ? "Saving..." : "Mark in progress"}
+        </button>
+        <button
+          disabled={isSaving || status === "completed"}
+          type="button"
+          onClick={() => onProgressUpdate(item, "completed")}
+        >
+          {isSaving ? "Saving..." : "Mark completed"}
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function LearningSummaryCard({ label, value }) {
+  return (
+    <article className="learning-summary-card">
       <strong>{value}</strong>
       <span>{label}</span>
     </article>
   );
 }
 
-function MessagePanel({ tone, message }) {
-  return (
-    <section className={`message-panel ${tone}`}>
-      <p>{message}</p>
-    </section>
-  );
+function StatusBadge({ status }) {
+  return <span className={`learning-status status-${status}`}>{formatStatus(status)}</span>;
 }
 
-function RwdState({ title, message, note }) {
+function LearningEmptyState({ message }) {
+  return <p className="learning-empty-state">{message}</p>;
+}
+
+function LearningMessage({ tone, message }) {
+  return <p className={`learning-message ${tone}`}>{message}</p>;
+}
+
+function LearningState({ title, message, note }) {
   return (
     <section className="state-panel">
       <h2>{title}</h2>
@@ -215,71 +260,36 @@ function RwdState({ title, message, note }) {
   );
 }
 
-function compareRwdItems(first, second) {
-  return getRwdSortName(first).localeCompare(getRwdSortName(second));
+function compareLearningItems(first, second) {
+  const statusOrder = { in_progress: 0, not_started: 1, completed: 2 };
+  const statusDifference = (statusOrder[getProgressStatus(first)] ?? 3) - (statusOrder[getProgressStatus(second)] ?? 3);
+  if (statusDifference !== 0) return statusDifference;
+  return getLearningSortName(first).localeCompare(getLearningSortName(second));
 }
 
-function getRwdSortName(item) {
+function getLearningSortName(item) {
   return item?.countryName || item?.title || "";
 }
 
 function getProgressStatus(item) {
-  return item?.progress?.completionStatus || "not_started";
-}
-
-function getProgressPercent(status) {
-  if (status === "completed") {
-    return 100;
-  }
-
-  if (status === "in_progress") {
-    return 50;
-  }
-
-  return 0;
-}
-
-function getStatusClass(status) {
-  if (status === "completed") {
-    return "status-tag enrolled";
-  }
-
-  if (status === "in_progress") {
-    return "status-tag";
-  }
-
-  return "status-tag muted";
+  const status = item?.progress?.completionStatus;
+  return ["not_started", "in_progress", "completed"].includes(status) ? status : "not_started";
 }
 
 function formatStatus(status) {
   return String(status || "not_started").replaceAll("_", " ");
 }
 
-function formatQuiz(progress) {
-  if (!progress?.quizScore && progress?.quizScore !== 0) {
-    return "No quiz score";
-  }
-
-  return `${progress.quizScore}% · ${progress.passed ? "passed" : "not passed"}`;
+function formatDate(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 
-function formatDate(value) {
-  if (!value) {
-    return "Not completed";
-  }
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return String(value);
-  }
-
-  return date.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+function hasText(value) {
+  return typeof value === "string" && value.trim().length > 0;
 }
 
 function asArray(value) {
-  return Array.isArray(value) ? value : [];
+  return Array.isArray(value) ? [...value] : [];
 }

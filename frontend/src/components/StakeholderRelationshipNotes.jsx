@@ -167,6 +167,11 @@ export function StakeholderRelationshipNotes() {
       return;
     }
 
+    const confirmed = window.confirm(buildRelationshipDeleteConfirmation(selectedNote, selectedNoteId));
+    if (!confirmed) {
+      return;
+    }
+
     setBusy("delete");
     setMessage("");
     setError("");
@@ -367,7 +372,7 @@ export function StakeholderRelationshipNotes() {
             {selectedNoteId ? (
               <div className="staff-inline-actions">
                 <button className="text-action danger" disabled={busy === "delete"} type="button" onClick={handleDelete}>
-                  {busy === "delete" ? "Deleting..." : "Delete Note"}
+                  {busy === "delete" ? "Deleting..." : "Delete Relationship Note"}
                 </button>
               </div>
             ) : null}
@@ -532,4 +537,16 @@ function startOfToday() {
 
 function getNoteId(note) {
   return getRecordId(note, ["stakeholderRelationshipNoteId", "stakeholderRelationshipNoteID"]);
+}
+
+function buildRelationshipDeleteConfirmation(note, noteId) {
+  return [
+    `Delete this relationship note for ${note?.stakeholderName || note?.stakeholderId || "this stakeholder"}?`,
+    "",
+    `Record type: Relationship note`,
+    `Note ID: ${noteId || "Not available"}`,
+    `Stakeholder ID: ${note?.stakeholderId || "Not set"}`,
+    `Relationship status: ${note?.relationshipStatus || "Not set"}`,
+    "This may affect staff relationship tracking and follow-up reporting.",
+  ].join("\n");
 }

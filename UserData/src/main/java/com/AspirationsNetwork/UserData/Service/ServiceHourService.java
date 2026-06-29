@@ -4,6 +4,7 @@ import com.AspirationsNetwork.UserData.DTO.ServiceHourRecordDTO;
 import com.AspirationsNetwork.UserData.DTO.ServiceHourTotalsDTO;
 import com.AspirationsNetwork.UserData.Models.ServiceHourRecord;
 import com.google.api.core.ApiFuture;
+import com.google.cloud.firestore.CollectionReference;
 import com.google.cloud.firestore.DocumentReference;
 import com.google.cloud.firestore.DocumentSnapshot;
 import com.google.cloud.firestore.FieldValue;
@@ -32,7 +33,8 @@ public class ServiceHourService {
     private final Firestore firestore;
 
     public String createOrReviewServiceHourRecord(ServiceHourRecordDTO dto) throws Exception {
-        requireText(dto.getUserUID(), "userUID is required");
+        String resolvedUserUID = resolveYouthUserUID(dto.getUserIdentifier(), dto.getUserUID());
+        dto.setUserUID(resolvedUserUID);
         requireText(dto.getProgramId(), "programId is required");
         requireText(dto.getReviewedByStaffUID(), "reviewedByStaffUID is required");
 
@@ -232,5 +234,44 @@ public class ServiceHourService {
         if (value == null || value.isBlank()) {
             throw new IllegalArgumentException(message);
         }
+    }
+
+    private String resolveYouthUserUID(String userIdentifier, String userUID) throws Exception {
+        String identifier = firstText(userIdentifier, userUID);
+        requireText(identifier, "userIdentifier is required");
+
+        if (!isAspnParticipantId(identifier)) {
+            return identifier;
+        }
+
+        CollectionReference users = firestore.collection(UserInfoService.COLLECTION_NAME);
+        QuerySnapshot matches = users
+                .whereEqualTo("aspnParticipantId", identifier)
+                .get()
+                .get();
+
+        if (matches.isEmpty()) {
+            throw new IllegalArgumentException("Youth profile does not exist for the provided identifier");
+        }
+
+        if (matches.getDocuments().size() > 1) {
+            throw new IllegalArgumentException("Multiple youth profiles match the provided identifier");
+        }
+
+        return matches.getDocuments().get(0).getId();
+    }
+
+    private String firstText(String first, String second) {
+        if (first != null && !first.isBlank()) {
+            return first.trim();
+        }
+        if (second != null && !second.isBlank()) {
+            return second.trim();
+        }
+        return "";
+    }
+
+    private boolean isAspnParticipantId(String value) {
+        return value != null && !value.isBlank() && value.trim().toUpperCase().startsWith("ASPN-");
     }
 }

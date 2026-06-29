@@ -82,7 +82,7 @@ export function NotificationsPage() {
       <NotificationsState
         title="Notifications unavailable"
         message={error}
-        note="If this is a new Firebase account, ASPN may still need to create the matching Firestore profile document."
+        note="If this is a new Firebase account, complete your ASPN profile before opening Notifications."
       />
     );
   }

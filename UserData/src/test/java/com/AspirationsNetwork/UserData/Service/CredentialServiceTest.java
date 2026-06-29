@@ -21,6 +21,8 @@ import com.google.cloud.firestore.WriteResult;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -292,11 +295,15 @@ class CredentialServiceTest {
         DocumentReference earnedDocument = mock(DocumentReference.class);
         DocumentSnapshot definitionSnapshot = mock(DocumentSnapshot.class);
         DocumentSnapshot userSnapshot = mock(DocumentSnapshot.class);
+        Query earnedUserQuery = mock(Query.class);
+        QuerySnapshot earnedLookupSnapshot = mock(QuerySnapshot.class);
         ApiFuture<DocumentSnapshot> definitionFuture = mock(ApiFuture.class);
         ApiFuture<DocumentSnapshot> userFuture = mock(ApiFuture.class);
+        ApiFuture<QuerySnapshot> earnedLookupFuture = mock(ApiFuture.class);
         ApiFuture<WriteResult> writeFuture = mock(ApiFuture.class);
         ApiFuture<WriteResult> updateFuture = mock(ApiFuture.class);
         NotificationService notificationService = mock(NotificationService.class);
+        CredentialDefinition definition = credentialDefinition("credential-123", "Core Credential", true, List.of());
 
         when(firestore.collection(CredentialService.CREDENTIAL_DEFINITIONS_COLLECTION)).thenReturn(definitionsCollection);
         when(firestore.collection(UserInfoService.COLLECTION_NAME)).thenReturn(usersCollection);
@@ -310,7 +317,12 @@ class CredentialServiceTest {
         when(userFuture.get()).thenReturn(userSnapshot);
         when(definitionSnapshot.exists()).thenReturn(true);
         when(definitionSnapshot.getBoolean("active")).thenReturn(true);
+        when(definitionSnapshot.toObject(CredentialDefinition.class)).thenReturn(definition);
         when(userSnapshot.exists()).thenReturn(true);
+        when(earnedCollection.whereEqualTo("userUID", "user-123")).thenReturn(earnedUserQuery);
+        when(earnedUserQuery.get()).thenReturn(earnedLookupFuture);
+        when(earnedLookupFuture.get()).thenReturn(earnedLookupSnapshot);
+        when(earnedLookupSnapshot.getDocuments()).thenReturn(List.of());
         when(earnedDocument.set(any(EarnedCredential.class))).thenReturn(writeFuture);
         when(userDocument.update(eq("earnedCredentialIds"), any())).thenReturn(updateFuture);
         when(writeFuture.get()).thenReturn(mock(WriteResult.class));
@@ -339,6 +351,229 @@ class CredentialServiceTest {
         assertEquals("user-123", savedEarnedCredential.getUserUID());
         assertEquals("staff-123", savedEarnedCredential.getAwardedByStaffUID());
         assertEquals("awarded", savedEarnedCredential.getStatus());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void awardCredentialResolvesAspnParticipantIdBeforeAwarding() throws Exception {
+        Firestore firestore = mock(Firestore.class);
+        CollectionReference definitionsCollection = mock(CollectionReference.class);
+        CollectionReference usersCollection = mock(CollectionReference.class);
+        CollectionReference earnedCollection = mock(CollectionReference.class);
+        DocumentReference definitionDocument = mock(DocumentReference.class);
+        DocumentReference participantLookupDocument = mock(DocumentReference.class);
+        DocumentReference userDocument = mock(DocumentReference.class);
+        DocumentReference earnedDocument = mock(DocumentReference.class);
+        DocumentSnapshot definitionSnapshot = mock(DocumentSnapshot.class);
+        DocumentSnapshot participantLookupSnapshot = mock(DocumentSnapshot.class);
+        DocumentSnapshot userSnapshot = mock(DocumentSnapshot.class);
+        Query participantQuery = mock(Query.class);
+        Query earnedUserQuery = mock(Query.class);
+        QuerySnapshot participantQuerySnapshot = mock(QuerySnapshot.class);
+        QuerySnapshot earnedLookupSnapshot = mock(QuerySnapshot.class);
+        QueryDocumentSnapshot matchingUserDocument = mock(QueryDocumentSnapshot.class);
+        ApiFuture<DocumentSnapshot> definitionFuture = mock(ApiFuture.class);
+        ApiFuture<DocumentSnapshot> participantLookupFuture = mock(ApiFuture.class);
+        ApiFuture<DocumentSnapshot> userFuture = mock(ApiFuture.class);
+        ApiFuture<QuerySnapshot> participantQueryFuture = mock(ApiFuture.class);
+        ApiFuture<QuerySnapshot> earnedLookupFuture = mock(ApiFuture.class);
+        ApiFuture<WriteResult> writeFuture = mock(ApiFuture.class);
+        ApiFuture<WriteResult> updateFuture = mock(ApiFuture.class);
+        NotificationService notificationService = mock(NotificationService.class);
+        CredentialDefinition definition = credentialDefinition("credential-123", "Core Credential", true, List.of());
+
+        when(firestore.collection(CredentialService.CREDENTIAL_DEFINITIONS_COLLECTION)).thenReturn(definitionsCollection);
+        when(firestore.collection(UserInfoService.COLLECTION_NAME)).thenReturn(usersCollection);
+        when(firestore.collection(CredentialService.EARNED_CREDENTIALS_COLLECTION)).thenReturn(earnedCollection);
+        when(definitionsCollection.document("credential-123")).thenReturn(definitionDocument);
+        when(usersCollection.document("ASPN-2026-0001")).thenReturn(participantLookupDocument);
+        when(usersCollection.document("user-123")).thenReturn(userDocument);
+        when(usersCollection.whereEqualTo("aspnParticipantId", "ASPN-2026-0001")).thenReturn(participantQuery);
+        when(earnedCollection.document(any(String.class))).thenReturn(earnedDocument);
+        when(definitionDocument.get()).thenReturn(definitionFuture);
+        when(participantLookupDocument.get()).thenReturn(participantLookupFuture);
+        when(userDocument.get()).thenReturn(userFuture);
+        when(participantQuery.get()).thenReturn(participantQueryFuture);
+        when(definitionFuture.get()).thenReturn(definitionSnapshot);
+        when(participantLookupFuture.get()).thenReturn(participantLookupSnapshot);
+        when(userFuture.get()).thenReturn(userSnapshot);
+        when(participantQueryFuture.get()).thenReturn(participantQuerySnapshot);
+        when(definitionSnapshot.exists()).thenReturn(true);
+        when(definitionSnapshot.getBoolean("active")).thenReturn(true);
+        when(definitionSnapshot.toObject(CredentialDefinition.class)).thenReturn(definition);
+        when(participantLookupSnapshot.exists()).thenReturn(false);
+        when(participantQuerySnapshot.getDocuments()).thenReturn(List.of(matchingUserDocument));
+        when(matchingUserDocument.getString("uid")).thenReturn("user-123");
+        when(userSnapshot.exists()).thenReturn(true);
+        when(earnedCollection.whereEqualTo("userUID", "user-123")).thenReturn(earnedUserQuery);
+        when(earnedUserQuery.get()).thenReturn(earnedLookupFuture);
+        when(earnedLookupFuture.get()).thenReturn(earnedLookupSnapshot);
+        when(earnedLookupSnapshot.getDocuments()).thenReturn(List.of());
+        when(earnedDocument.set(any(EarnedCredential.class))).thenReturn(writeFuture);
+        when(userDocument.update(eq("earnedCredentialIds"), any())).thenReturn(updateFuture);
+        when(writeFuture.get()).thenReturn(mock(WriteResult.class));
+        when(updateFuture.get()).thenReturn(mock(WriteResult.class));
+
+        AwardCredentialDTO dto = new AwardCredentialDTO();
+        dto.setCredentialID("credential-123");
+        dto.setUserIdentifier("ASPN-2026-0001");
+        dto.setAwardedByStaffUID("staff-123");
+
+        CredentialService service = new CredentialService(firestore, notificationService, mock(PlatformEventService.class));
+        String earnedCredentialID = service.awardCredentialToYouth(dto);
+
+        ArgumentCaptor<EarnedCredential> earnedCaptor = ArgumentCaptor.forClass(EarnedCredential.class);
+        verify(earnedDocument).set(earnedCaptor.capture());
+        verify(userDocument).update(eq("earnedCredentialIds"), any());
+        verify(notificationService).createCredentialEarnedNotification(
+                "user-123",
+                "credential-123",
+                earnedCredentialID
+        );
+
+        assertEquals("user-123", dto.getUserUID());
+        assertEquals("user-123", earnedCaptor.getValue().getUserUID());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void awardCredentialResolvesCredentialNameBeforeAwarding() throws Exception {
+        Firestore firestore = mock(Firestore.class);
+        CollectionReference definitionsCollection = mock(CollectionReference.class);
+        CollectionReference usersCollection = mock(CollectionReference.class);
+        CollectionReference earnedCollection = mock(CollectionReference.class);
+        DocumentReference credentialNameLookupDocument = mock(DocumentReference.class);
+        DocumentReference definitionDocument = mock(DocumentReference.class);
+        DocumentReference userDocument = mock(DocumentReference.class);
+        DocumentReference earnedDocument = mock(DocumentReference.class);
+        DocumentSnapshot credentialNameLookupSnapshot = mock(DocumentSnapshot.class);
+        DocumentSnapshot definitionSnapshot = mock(DocumentSnapshot.class);
+        DocumentSnapshot userSnapshot = mock(DocumentSnapshot.class);
+        Query credentialNameQuery = mock(Query.class);
+        Query earnedUserQuery = mock(Query.class);
+        QuerySnapshot credentialNameQuerySnapshot = mock(QuerySnapshot.class);
+        QuerySnapshot earnedLookupSnapshot = mock(QuerySnapshot.class);
+        QueryDocumentSnapshot matchingCredentialDocument = mock(QueryDocumentSnapshot.class);
+        ApiFuture<DocumentSnapshot> credentialNameLookupFuture = mock(ApiFuture.class);
+        ApiFuture<DocumentSnapshot> definitionFuture = mock(ApiFuture.class);
+        ApiFuture<DocumentSnapshot> userFuture = mock(ApiFuture.class);
+        ApiFuture<QuerySnapshot> credentialNameQueryFuture = mock(ApiFuture.class);
+        ApiFuture<QuerySnapshot> earnedLookupFuture = mock(ApiFuture.class);
+        ApiFuture<WriteResult> writeFuture = mock(ApiFuture.class);
+        ApiFuture<WriteResult> updateFuture = mock(ApiFuture.class);
+        NotificationService notificationService = mock(NotificationService.class);
+        CredentialDefinition definition = credentialDefinition("credential-123", "Core Credential", true, List.of());
+        definition.setCredentialName("Civic Research");
+
+        when(firestore.collection(CredentialService.CREDENTIAL_DEFINITIONS_COLLECTION)).thenReturn(definitionsCollection);
+        when(firestore.collection(UserInfoService.COLLECTION_NAME)).thenReturn(usersCollection);
+        when(firestore.collection(CredentialService.EARNED_CREDENTIALS_COLLECTION)).thenReturn(earnedCollection);
+        when(definitionsCollection.document("Civic Research")).thenReturn(credentialNameLookupDocument);
+        when(definitionsCollection.document("credential-123")).thenReturn(definitionDocument);
+        when(definitionsCollection.whereEqualTo("credentialName", "Civic Research")).thenReturn(credentialNameQuery);
+        when(usersCollection.document("user-123")).thenReturn(userDocument);
+        when(earnedCollection.document(any(String.class))).thenReturn(earnedDocument);
+        when(credentialNameLookupDocument.get()).thenReturn(credentialNameLookupFuture);
+        when(definitionDocument.get()).thenReturn(definitionFuture);
+        when(userDocument.get()).thenReturn(userFuture);
+        when(credentialNameQuery.get()).thenReturn(credentialNameQueryFuture);
+        when(credentialNameLookupFuture.get()).thenReturn(credentialNameLookupSnapshot);
+        when(definitionFuture.get()).thenReturn(definitionSnapshot);
+        when(userFuture.get()).thenReturn(userSnapshot);
+        when(credentialNameQueryFuture.get()).thenReturn(credentialNameQuerySnapshot);
+        when(credentialNameLookupSnapshot.exists()).thenReturn(false);
+        when(credentialNameQuerySnapshot.getDocuments()).thenReturn(List.of(matchingCredentialDocument));
+        when(matchingCredentialDocument.getString("credentialID")).thenReturn("credential-123");
+        when(definitionSnapshot.exists()).thenReturn(true);
+        when(definitionSnapshot.getBoolean("active")).thenReturn(true);
+        when(definitionSnapshot.toObject(CredentialDefinition.class)).thenReturn(definition);
+        when(userSnapshot.exists()).thenReturn(true);
+        when(earnedCollection.whereEqualTo("userUID", "user-123")).thenReturn(earnedUserQuery);
+        when(earnedUserQuery.get()).thenReturn(earnedLookupFuture);
+        when(earnedLookupFuture.get()).thenReturn(earnedLookupSnapshot);
+        when(earnedLookupSnapshot.getDocuments()).thenReturn(List.of());
+        when(earnedDocument.set(any(EarnedCredential.class))).thenReturn(writeFuture);
+        when(userDocument.update(eq("earnedCredentialIds"), any())).thenReturn(updateFuture);
+        when(writeFuture.get()).thenReturn(mock(WriteResult.class));
+        when(updateFuture.get()).thenReturn(mock(WriteResult.class));
+
+        AwardCredentialDTO dto = new AwardCredentialDTO();
+        dto.setCredentialIdentifier("Civic Research");
+        dto.setUserUID("user-123");
+        dto.setAwardedByStaffUID("staff-123");
+
+        CredentialService service = new CredentialService(firestore, notificationService, mock(PlatformEventService.class));
+        service.awardCredentialToYouth(dto);
+
+        ArgumentCaptor<EarnedCredential> earnedCaptor = ArgumentCaptor.forClass(EarnedCredential.class);
+        verify(earnedDocument).set(earnedCaptor.capture());
+
+        assertEquals("credential-123", dto.getCredentialID());
+        assertEquals("credential-123", earnedCaptor.getValue().getCredentialID());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void awardCredentialBlocksDuplicateAwardForSameYouthAndCredential() throws Exception {
+        Firestore firestore = mock(Firestore.class);
+        CollectionReference definitionsCollection = mock(CollectionReference.class);
+        CollectionReference usersCollection = mock(CollectionReference.class);
+        CollectionReference earnedCollection = mock(CollectionReference.class);
+        DocumentReference definitionDocument = mock(DocumentReference.class);
+        DocumentReference userDocument = mock(DocumentReference.class);
+        DocumentReference earnedWriteDocument = mock(DocumentReference.class);
+        DocumentSnapshot definitionSnapshot = mock(DocumentSnapshot.class);
+        DocumentSnapshot userSnapshot = mock(DocumentSnapshot.class);
+        Query earnedUserQuery = mock(Query.class);
+        QuerySnapshot earnedLookupSnapshot = mock(QuerySnapshot.class);
+        QueryDocumentSnapshot existingEarnedDocument = mock(QueryDocumentSnapshot.class);
+        ApiFuture<DocumentSnapshot> definitionFuture = mock(ApiFuture.class);
+        ApiFuture<DocumentSnapshot> userFuture = mock(ApiFuture.class);
+        ApiFuture<QuerySnapshot> earnedLookupFuture = mock(ApiFuture.class);
+        Date existingAwardDate = localDate(2026, 6, 24);
+
+        CredentialDefinition definition = credentialDefinition("credential-123", "Core Credential", true, List.of());
+        definition.setCredentialName("Civic Research");
+
+        EarnedCredential existingEarnedCredential = new EarnedCredential();
+        existingEarnedCredential.setEarnedCredentialID("earned-existing");
+        existingEarnedCredential.setCredentialID("credential-123");
+        existingEarnedCredential.setUserUID("user-123");
+        existingEarnedCredential.setAwardedAt(existingAwardDate);
+
+        when(firestore.collection(CredentialService.CREDENTIAL_DEFINITIONS_COLLECTION)).thenReturn(definitionsCollection);
+        when(firestore.collection(UserInfoService.COLLECTION_NAME)).thenReturn(usersCollection);
+        when(firestore.collection(CredentialService.EARNED_CREDENTIALS_COLLECTION)).thenReturn(earnedCollection);
+        when(definitionsCollection.document("credential-123")).thenReturn(definitionDocument);
+        when(usersCollection.document("user-123")).thenReturn(userDocument);
+        when(earnedCollection.document(any(String.class))).thenReturn(earnedWriteDocument);
+        when(definitionDocument.get()).thenReturn(definitionFuture);
+        when(userDocument.get()).thenReturn(userFuture);
+        when(definitionFuture.get()).thenReturn(definitionSnapshot);
+        when(userFuture.get()).thenReturn(userSnapshot);
+        when(definitionSnapshot.exists()).thenReturn(true);
+        when(definitionSnapshot.getBoolean("active")).thenReturn(true);
+        when(definitionSnapshot.toObject(CredentialDefinition.class)).thenReturn(definition);
+        when(userSnapshot.exists()).thenReturn(true);
+        when(earnedCollection.whereEqualTo("userUID", "user-123")).thenReturn(earnedUserQuery);
+        when(earnedUserQuery.get()).thenReturn(earnedLookupFuture);
+        when(earnedLookupFuture.get()).thenReturn(earnedLookupSnapshot);
+        when(earnedLookupSnapshot.getDocuments()).thenReturn(List.of(existingEarnedDocument));
+        when(existingEarnedDocument.toObject(EarnedCredential.class)).thenReturn(existingEarnedCredential);
+
+        AwardCredentialDTO dto = new AwardCredentialDTO();
+        dto.setCredentialID("credential-123");
+        dto.setUserUID("user-123");
+        dto.setAwardedByStaffUID("staff-123");
+
+        CredentialService service = new CredentialService(firestore, mock(NotificationService.class), mock(PlatformEventService.class));
+        DuplicateCredentialAwardException exception = assertThrows(
+                DuplicateCredentialAwardException.class,
+                () -> service.awardCredentialToYouth(dto)
+        );
+
+        assertEquals("This youth has already earned Civic Research on Jun 24, 2026.", exception.getMessage());
+        verify(earnedWriteDocument, never()).set(any(EarnedCredential.class));
     }
 
     @Test
@@ -395,6 +630,67 @@ class CredentialServiceTest {
         assertEquals("staff-category", credential.getCategory());
         assertEquals("awarded", credential.getStatus());
         assertEquals(awardedAt, credential.getAwardedAt());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void getEarnedCredentialsForUserDeduplicatesHistoricalDuplicatesUsingEarliestAwardDate() throws Exception {
+        Firestore firestore = mock(Firestore.class);
+        CollectionReference earnedCollection = mock(CollectionReference.class);
+        CollectionReference definitionsCollection = mock(CollectionReference.class);
+        QueryDocumentSnapshot firstEarnedDocument = mock(QueryDocumentSnapshot.class);
+        QueryDocumentSnapshot duplicateEarnedDocument = mock(QueryDocumentSnapshot.class);
+        QuerySnapshot earnedSnapshot = mock(QuerySnapshot.class);
+        DocumentReference definitionDocument = mock(DocumentReference.class);
+        DocumentSnapshot definitionSnapshot = mock(DocumentSnapshot.class);
+        ApiFuture<QuerySnapshot> earnedFuture = mock(ApiFuture.class);
+        ApiFuture<DocumentSnapshot> definitionFuture = mock(ApiFuture.class);
+        Date laterAwardDate = localDate(2026, 6, 29);
+        Date earlierAwardDate = localDate(2026, 6, 24);
+
+        EarnedCredential laterEarnedCredential = new EarnedCredential();
+        laterEarnedCredential.setEarnedCredentialID("earned-later");
+        laterEarnedCredential.setCredentialID("credential-123");
+        laterEarnedCredential.setUserUID("user-123");
+        laterEarnedCredential.setStatus("awarded");
+        laterEarnedCredential.setAwardedAt(laterAwardDate);
+
+        EarnedCredential earlierEarnedCredential = new EarnedCredential();
+        earlierEarnedCredential.setEarnedCredentialID("earned-earlier");
+        earlierEarnedCredential.setCredentialID("credential-123");
+        earlierEarnedCredential.setUserUID("user-123");
+        earlierEarnedCredential.setStatus("awarded");
+        earlierEarnedCredential.setAwardedAt(earlierAwardDate);
+
+        CredentialDefinition definition = new CredentialDefinition();
+        definition.setCredentialID("credential-123");
+        definition.setCredentialName("Civic Research");
+        definition.setDescription("Staff configured description");
+        definition.setIcon("staff-icon");
+        definition.setCategory("Core Credential");
+
+        when(firestore.collection(CredentialService.EARNED_CREDENTIALS_COLLECTION)).thenReturn(earnedCollection);
+        when(firestore.collection(CredentialService.CREDENTIAL_DEFINITIONS_COLLECTION)).thenReturn(definitionsCollection);
+        when(earnedCollection.whereEqualTo("userUID", "user-123")).thenReturn(earnedCollection);
+        when(earnedCollection.get()).thenReturn(earnedFuture);
+        when(earnedFuture.get()).thenReturn(earnedSnapshot);
+        when(earnedSnapshot.getDocuments()).thenReturn(List.of(firstEarnedDocument, duplicateEarnedDocument));
+        when(firstEarnedDocument.toObject(EarnedCredential.class)).thenReturn(laterEarnedCredential);
+        when(duplicateEarnedDocument.toObject(EarnedCredential.class)).thenReturn(earlierEarnedCredential);
+        when(definitionsCollection.document("credential-123")).thenReturn(definitionDocument);
+        when(definitionDocument.get()).thenReturn(definitionFuture);
+        when(definitionFuture.get()).thenReturn(definitionSnapshot);
+        when(definitionSnapshot.exists()).thenReturn(true);
+        when(definitionSnapshot.toObject(CredentialDefinition.class)).thenReturn(definition);
+
+        CredentialService service = new CredentialService(firestore, mock(NotificationService.class), mock(PlatformEventService.class));
+        List<EarnedCredentialDisplayDTO> credentials = service.getEarnedCredentialsForUser("user-123");
+
+        assertEquals(1, credentials.size());
+        assertEquals("earned-earlier", credentials.get(0).getEarnedCredentialID());
+        assertEquals("credential-123", credentials.get(0).getCredentialID());
+        assertEquals("Civic Research", credentials.get(0).getCredentialName());
+        assertEquals(earlierAwardDate, credentials.get(0).getAwardedAt());
     }
 
     @Test
@@ -569,5 +865,11 @@ class CredentialServiceTest {
         definition.setActive(active);
         definition.setProgramIds(programIds);
         return definition;
+    }
+
+    private Date localDate(int year, int month, int day) {
+        return Date.from(LocalDate.of(year, month, day)
+                .atStartOfDay(ZoneId.systemDefault())
+                .toInstant());
     }
 }

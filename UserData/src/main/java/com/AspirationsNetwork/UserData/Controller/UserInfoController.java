@@ -1,11 +1,14 @@
 package com.AspirationsNetwork.UserData.Controller;
 
 import com.AspirationsNetwork.UserData.DTO.AttendanceRecordCreationDTO;
+import com.AspirationsNetwork.UserData.DTO.AttendanceBatchCreationDTO;
 import com.AspirationsNetwork.UserData.DTO.AttendanceTotalsDTO;
 import com.AspirationsNetwork.UserData.DTO.AwardCredentialDTO;
 import com.AspirationsNetwork.UserData.DTO.CredentialDefinitionCreationDTO;
 import com.AspirationsNetwork.UserData.DTO.CredentialDefinitionUpdateDTO;
 import com.AspirationsNetwork.UserData.DTO.CredentialTotalsDTO;
+import com.AspirationsNetwork.UserData.DTO.DuplicateYouthProfileGroupDTO;
+import com.AspirationsNetwork.UserData.DTO.DuplicateYouthProfileSummaryDTO;
 import com.AspirationsNetwork.UserData.DTO.EducatorDTO;
 import com.AspirationsNetwork.UserData.DTO.EducatorTotalsDTO;
 import com.AspirationsNetwork.UserData.DTO.ExternalDatasetDTO;
@@ -65,6 +68,7 @@ import com.AspirationsNetwork.UserData.Service.AuthService;
 import com.AspirationsNetwork.UserData.Service.CredentialService;
 import com.AspirationsNetwork.UserData.Service.DashboardService;
 import com.AspirationsNetwork.UserData.Service.DiscussionPostService;
+import com.AspirationsNetwork.UserData.Service.DuplicateCredentialAwardException;
 import com.AspirationsNetwork.UserData.Service.EducatorService;
 import com.AspirationsNetwork.UserData.Service.ExternalDatasetLinkService;
 import com.AspirationsNetwork.UserData.Service.ForbiddenAccessException;
@@ -94,8 +98,10 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 @RestController
@@ -752,6 +758,8 @@ public class UserInfoController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
         } catch (ForbiddenAccessException e) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+        } catch (DuplicateCredentialAwardException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(e.getMessage());
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         } catch (Exception e) {
@@ -1952,6 +1960,243 @@ public class UserInfoController {
         }
     }
 
+    @GetMapping("/staff/users/youth/{id}/record")
+    public ResponseEntity<?> getYouthStudentRecordForStaff(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @PathVariable String id
+    ) {
+        try {
+            authService.requireStaff(authorizationHeader);
+            User user = userInfoService.getYouthUserForStaff(id);
+            if (user == null) {
+                return ResponseEntity.notFound().build();
+            }
+            String resolvedUserUID = userInfoService.resolveYouthUserUidForStaff(id);
+            YouthDashboardDTO dashboard = dashboardService.getYouthDashboard(resolvedUserUID);
+            User responseUser = user;
+
+            if (isEmptyStudentRecord(dashboard)) {
+                StudentRecordSource fallbackSource = findStudentRecordFallback(user, resolvedUserUID);
+                if (fallbackSource != null) {
+                    responseUser = fallbackSource.user();
+                    resolvedUserUID = fallbackSource.userUID();
+                    dashboard = fallbackSource.dashboard();
+                }
+            }
+
+            YouthSelfServiceProfileDTO response = new YouthSelfServiceProfileDTO();
+            response.setUser(responseUser);
+            if (dashboard == null) {
+                response.setEarnedCredentials(List.of());
+                response.setAttendanceRecords(List.of());
+                response.setServiceHourRecords(List.of());
+            } else {
+                response.setEarnedCredentials(dashboard.getEarnedCredentials() == null ? List.of() : dashboard.getEarnedCredentials());
+                response.setAttendanceRecords(dashboard.getAttendanceRecords() == null ? List.of() : dashboard.getAttendanceRecords());
+                response.setServiceHourRecords(dashboard.getServiceHourRecords() == null ? List.of() : dashboard.getServiceHourRecords());
+            }
+            return ResponseEntity.ok(response);
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of(
+                    "message",
+                    "Student record could not be loaded: " + e.getMessage()
+            ));
+        }
+    }
+
+    @GetMapping("/staff/users/youth/{id}/duplicates")
+    public ResponseEntity<?> getPossibleDuplicateYouthProfilesForStaff(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @PathVariable String id
+    ) {
+        try {
+            authService.requireStaff(authorizationHeader);
+            User selectedUser = userInfoService.getYouthUserForStaff(id);
+            if (selectedUser == null) {
+                return ResponseEntity.notFound().build();
+            }
+            List<DuplicateYouthProfileSummaryDTO> summaries = userInfoService
+                    .getPossibleDuplicateYouthProfilesForStaff(id)
+                    .stream()
+                    .map(this::toDuplicateYouthProfileSummary)
+                    .toList();
+            return ResponseEntity.ok(summaries);
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of(
+                    "message",
+                    "Duplicate profile check could not be loaded: " + e.getMessage()
+            ));
+        }
+    }
+
+    @GetMapping("/staff/users/youth/duplicate-groups")
+    public ResponseEntity<?> getDuplicateYouthProfileGroupsForStaff(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader
+    ) {
+        try {
+            authService.requireStaff(authorizationHeader);
+            return ResponseEntity.ok(toDuplicateYouthProfileGroups(userInfoService.getYouthUsersForStaff()));
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of(
+                    "message",
+                    "Duplicate profile review could not be loaded: " + e.getMessage()
+            ));
+        }
+    }
+
+    private StudentRecordSource findStudentRecordFallback(User selectedUser, String selectedUserUID) throws Exception {
+        for (User candidate : userInfoService.getYouthUsersForStaff()) {
+            String candidateUID = candidate == null ? null : candidate.getUid();
+            if (candidateUID == null || candidateUID.isBlank() || candidateUID.equals(selectedUserUID)) {
+                continue;
+            }
+            if (!hasSharedYouthIdentity(selectedUser, candidate)) {
+                continue;
+            }
+
+            YouthDashboardDTO candidateDashboard = dashboardService.getYouthDashboard(candidateUID);
+            if (!isEmptyStudentRecord(candidateDashboard)) {
+                return new StudentRecordSource(candidate, candidateUID, candidateDashboard);
+            }
+        }
+        return null;
+    }
+
+    private boolean hasSharedYouthIdentity(User selectedUser, User candidate) {
+        return hasMatchingText(selectedUser.getAspnParticipantId(), candidate.getAspnParticipantId())
+                || hasMatchingText(selectedUser.getEmail(), candidate.getEmail());
+    }
+
+    private DuplicateYouthProfileSummaryDTO toDuplicateYouthProfileSummary(User user) {
+        DuplicateYouthProfileSummaryDTO summary = new DuplicateYouthProfileSummaryDTO();
+        String userUID = user.getUid();
+        summary.setUid(userUID);
+        summary.setName(getDisplayName(user));
+        summary.setEmail(user.getEmail());
+        summary.setAspnParticipantId(user.getAspnParticipantId());
+        summary.setProfileStatus(user.getProfileStatus());
+        summary.setStaffVerified(user.isStaffVerified());
+        summary.setDashboardRecordsAvailable(hasDashboardBackedRecords(userUID));
+        return summary;
+    }
+
+    private String getDisplayName(User user) {
+        String firstName = user.getFirstName() == null ? "" : user.getFirstName().trim();
+        String lastName = user.getLastName() == null ? "" : user.getLastName().trim();
+        String fullName = (firstName + " " + lastName).trim();
+        if (!fullName.isBlank()) {
+            return fullName;
+        }
+        if (user.getEmail() != null && !user.getEmail().isBlank()) {
+            return user.getEmail();
+        }
+        return "Unnamed youth";
+    }
+
+    private boolean hasDashboardBackedRecords(String userUID) {
+        if (userUID == null || userUID.isBlank()) {
+            return false;
+        }
+        try {
+            return !isEmptyStudentRecord(dashboardService.getYouthDashboard(userUID));
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private boolean hasMatchingText(String left, String right) {
+        return left != null && right != null && !left.isBlank() && left.equalsIgnoreCase(right);
+    }
+
+    private List<DuplicateYouthProfileGroupDTO> toDuplicateYouthProfileGroups(List<User> youthUsers) {
+        Map<String, List<User>> byParticipantId = new LinkedHashMap<>();
+        Map<String, List<User>> byEmail = new LinkedHashMap<>();
+
+        for (User user : youthUsers) {
+            if (user == null) {
+                continue;
+            }
+            String participantId = normalizeText(user.getAspnParticipantId());
+            if (!participantId.isBlank()) {
+                byParticipantId.computeIfAbsent(participantId, key -> new ArrayList<>()).add(user);
+            }
+
+            String email = normalizeEmail(user.getEmail());
+            if (!email.isBlank()) {
+                byEmail.computeIfAbsent(email, key -> new ArrayList<>()).add(user);
+            }
+        }
+
+        List<DuplicateYouthProfileGroupDTO> groups = new ArrayList<>();
+        byParticipantId.forEach((participantId, profiles) -> {
+            if (profiles.size() >= 2) {
+                groups.add(toDuplicateYouthProfileGroup(
+                        "aspnParticipantId",
+                        participantId,
+                        "Matching ASPN Participant ID",
+                        profiles
+                ));
+            }
+        });
+        byEmail.forEach((email, profiles) -> {
+            if (profiles.size() >= 2) {
+                groups.add(toDuplicateYouthProfileGroup(
+                        "email",
+                        email,
+                        "Matching email",
+                        profiles
+                ));
+            }
+        });
+        return groups;
+    }
+
+    private DuplicateYouthProfileGroupDTO toDuplicateYouthProfileGroup(
+            String matchType,
+            String matchValue,
+            String reason,
+            List<User> profiles
+    ) {
+        DuplicateYouthProfileGroupDTO group = new DuplicateYouthProfileGroupDTO();
+        group.setMatchType(matchType);
+        group.setMatchValue(matchValue);
+        group.setReason(reason);
+        group.setProfiles(profiles.stream().map(this::toDuplicateYouthProfileSummary).toList());
+        return group;
+    }
+
+    private String normalizeText(String value) {
+        return value == null ? "" : value.trim();
+    }
+
+    private String normalizeEmail(String value) {
+        return normalizeText(value).toLowerCase();
+    }
+
+    private boolean isEmptyStudentRecord(YouthDashboardDTO dashboard) {
+        return dashboard == null
+                || ((dashboard.getEarnedCredentials() == null || dashboard.getEarnedCredentials().isEmpty())
+                && (dashboard.getAttendanceRecords() == null || dashboard.getAttendanceRecords().isEmpty())
+                && (dashboard.getServiceHourRecords() == null || dashboard.getServiceHourRecords().isEmpty()));
+    }
+
+    private record StudentRecordSource(User user, String userUID, YouthDashboardDTO dashboard) {
+    }
+
     @PatchMapping("/staff/users/youth/{id}")
     public ResponseEntity<String> updateYouthUserForStaff(
             @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
@@ -2015,6 +2260,44 @@ public class UserInfoController {
             return ResponseEntity.badRequest().body(e.getMessage());
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body("Error creating attendance record");
+        }
+    }
+
+    @PostMapping("/staff/attendance/batch")
+    public ResponseEntity<List<String>> createAttendanceBatch(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestBody AttendanceBatchCreationDTO dto
+    ) {
+        try {
+            String staffUID = authService.requireStaff(authorizationHeader);
+            if (dto == null || dto.getRecords() == null || dto.getRecords().isEmpty()) {
+                return ResponseEntity.badRequest().body(List.of("At least one attendance record is required"));
+            }
+
+            List<String> attendanceRecordIds = new java.util.ArrayList<>();
+            for (AttendanceRecordCreationDTO record : dto.getRecords()) {
+                record.setStaffRecorderUID(staffUID);
+                if (record.getProgramID() == null || record.getProgramID().isBlank()) {
+                    record.setProgramID(dto.getProgramID());
+                }
+                if (record.getEventName() == null || record.getEventName().isBlank()) {
+                    record.setEventName(dto.getEventName());
+                }
+                if (record.getEventDate() == null) {
+                    record.setEventDate(dto.getEventDate());
+                }
+                attendanceRecordIds.add(attendanceService.createAttendanceRecord(record));
+            }
+
+            return ResponseEntity.ok(attendanceRecordIds);
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        } catch (ForbiddenAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(List.of(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(List.of("Error creating attendance batch: " + e.getMessage()));
         }
     }
 

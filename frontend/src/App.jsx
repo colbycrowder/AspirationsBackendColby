@@ -3,9 +3,11 @@ import { appConfig } from "./config.js";
 import { useAuth } from "./auth/AuthContext.jsx";
 import { AttendanceManagement } from "./components/AttendanceManagement.jsx";
 import { CredentialManagement } from "./components/CredentialManagement.jsx";
+import { CredentialDetailPage } from "./components/CredentialDetailPage.jsx";
 import { CredentialsPage } from "./components/CredentialsPage.jsx";
 import { EducatorManagement } from "./components/EducatorManagement.jsx";
 import { GovernmentOrganizationManagement } from "./components/GovernmentOrganizationManagement.jsx";
+import { MyJourneyPage } from "./components/MyJourneyPage.jsx";
 import { NotificationsPage } from "./components/NotificationsPage.jsx";
 import { OperationsReporting } from "./components/OperationsReporting.jsx";
 import { PartnerOrganizationManagement } from "./components/PartnerOrganizationManagement.jsx";
@@ -28,14 +30,19 @@ import { UserManagement } from "./components/UserManagement.jsx";
 import { YouthDashboard } from "./components/YouthDashboard.jsx";
 import { ApiAccessError, fetchStaffMetrics } from "./api.js";
 
-const youthRoutes = [
+const publicRoutes = [
   { path: "/login", label: "Login", title: "Login", public: true },
   { path: "/create-account", label: "Create Account", title: "Create Account", public: true },
-  { path: "/dashboard", label: "Youth Dashboard", title: "Youth Dashboard", protected: true },
+];
+
+const youthRoutes = [
+  { path: "/dashboard", label: "Home", title: "Home", protected: true },
+  { path: "/journey", label: "My Journey", title: "My Journey", protected: true },
   { path: "/profile", label: "Profile", title: "Profile", protected: true },
   { path: "/programs", label: "Programs", title: "Programs", protected: true },
-  { path: "/credentials", label: "Credentials", title: "Credentials", protected: true },
-  { path: "/rwd-learning-center", label: "RWD Learning Center", title: "RWD Learning Center", protected: true },
+  { path: "/credentials", label: "Credential Explorer", title: "Credential Explorer", protected: true },
+  { path: "/credentials/:credentialId", label: "Credential Detail", title: "Credential Detail", protected: true, hidden: true },
+  { path: "/rwd-learning-center", label: "Global Civic Movements", title: "Global Civic Movements", protected: true },
   { path: "/notifications", label: "Notifications", title: "Notifications", protected: true },
   { path: "/attendance", label: "Attendance", title: "Attendance", protected: true },
   { path: "/service-hours", label: "Service Hours", title: "Service Hours", protected: true },
@@ -64,9 +71,47 @@ const staffRoutes = [
 
 const routes = [
   { path: "/", label: "Home", title: "ASPN Platform", public: true },
+  ...publicRoutes,
   ...youthRoutes,
   ...staffRoutes,
 ];
+
+const youthPrimaryNavigation = selectRoutes(youthRoutes, [
+  "/dashboard",
+  "/journey",
+  "/programs",
+  "/rwd-learning-center",
+  "/profile",
+]);
+
+const youthSecondaryNavigation = selectRoutes(youthRoutes, [
+  "/credentials",
+  "/service-hours",
+  "/notifications",
+]);
+
+const youthMobileNavigation = [
+  { path: "/dashboard", label: "Home" },
+  { path: "/journey", label: "Journey" },
+  { path: "/programs", label: "Programs" },
+  { path: "/rwd-learning-center", label: "Learning" },
+  { path: "/profile", label: "Profile" },
+];
+
+const staffNavigationGroups = [
+  { label: "Overview", paths: ["/staff"] },
+  { label: "Youth", paths: ["/staff/users", "/staff/youth-management"] },
+  { label: "Programs", paths: ["/staff/program-management"] },
+  { label: "Credentials", paths: ["/staff/credential-management"] },
+  { label: "Participation", paths: ["/staff/attendance-management", "/staff/service-hour-management", "/staff/rwd-management"] },
+  { label: "Organizations", paths: ["/staff/educators", "/staff/partners", "/staff/government"] },
+  { label: "Stakeholders", paths: ["/staff/relationships"] },
+  { label: "Reports", paths: ["/staff/reporting", "/staff/metrics"] },
+  {
+    label: "Pilot Tools",
+    paths: ["/staff/pilot-readiness", "/staff/pilot-metrics", "/staff/pilot-evaluation", "/staff/operations-reporting"],
+  },
+].map((group) => ({ ...group, routes: selectRoutes(staffRoutes, group.paths) }));
 
 const pageDetails = {
   "/": {
@@ -75,9 +120,14 @@ const pageDetails = {
     items: ["Backend API calls are not connected yet.", "Staff role checks are placeholders for a later checkpoint."],
   },
   "/dashboard": {
-    eyebrow: "Youth Dashboard",
-    description: "Future dashboard powered primarily by GET /api/me/dashboard.",
-    items: ["Profile summary", "Programs", "Credentials", "Attendance", "Service hours", "RWD", "Notifications"],
+    eyebrow: "Youth Home",
+    description: "Your next steps, progress, learning, and opportunities in one place.",
+    items: ["Profile", "Programs", "Credentials", "Service hours", "Global Civic Movements", "Opportunities"],
+  },
+  "/journey": {
+    eyebrow: "Youth Journey",
+    description: "A developmental record of your programs, learning, credentials, and service milestones.",
+    items: ["Journey summary", "Program participation", "Credentials", "Learning", "Service milestones"],
   },
   "/programs": {
     eyebrow: "Programs",
@@ -95,8 +145,8 @@ const pageDetails = {
     items: ["Earned credentials", "Available credentials", "Requirement text", "Placeholder icon support"],
   },
   "/rwd-learning-center": {
-    eyebrow: "RWD Learning Center",
-    description: "Future tracking hub for the 16 externally hosted RWD activities.",
+    eyebrow: "Global Civic Movements",
+    description: "Explore externally hosted Global Civic Movements activities and track your progress.",
     items: ["External video links", "Progress status", "Quiz score submission", "Credential status"],
   },
   "/notifications": {
@@ -191,13 +241,52 @@ const pageDetails = {
   },
 };
 
+function selectRoutes(sourceRoutes, paths) {
+  return paths
+    .map((path) => sourceRoutes.find((route) => route.path === path))
+    .filter(Boolean);
+}
+
 function getCurrentPath() {
   return window.location.pathname === "/" ? "/" : window.location.pathname.replace(/\/$/, "");
+}
+
+function shouldHideRouteHeader(path) {
+  return path.startsWith("/credentials/")
+    || [
+    "/dashboard",
+    "/journey",
+    "/profile",
+    "/programs",
+    "/service-hours",
+    "/notifications",
+    "/rwd-learning-center",
+    "/credentials",
+    "/credentials/:credentialId",
+  ].includes(path);
+}
+
+function resolveRoute(currentPath) {
+  const exactRoute = routes.find((item) => item.path === currentPath);
+  if (exactRoute) {
+    return exactRoute;
+  }
+
+  if (currentPath.startsWith("/credentials/")) {
+    const credentialDetailRoute = youthRoutes.find((item) => item.path === "/credentials/:credentialId");
+    return {
+      ...credentialDetailRoute,
+      credentialId: decodeURIComponent(currentPath.replace("/credentials/", "")),
+    };
+  }
+
+  return routes[0];
 }
 
 function App() {
   const auth = useAuth();
   const [currentPath, setCurrentPath] = useState(getCurrentPath());
+  const [navigationAccess, setNavigationAccess] = useState("checking");
 
   useEffect(() => {
     const onPopState = () => setCurrentPath(getCurrentPath());
@@ -205,11 +294,44 @@ function App() {
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
 
-  const route = useMemo(
-    () => routes.find((item) => item.path === currentPath) || routes[0],
-    [currentPath]
-  );
+  useEffect(() => {
+    let isActive = true;
+
+    if (auth.loading) {
+      setNavigationAccess("checking");
+      return () => {
+        isActive = false;
+      };
+    }
+
+    if (!auth.isSignedIn) {
+      setNavigationAccess("public");
+      return () => {
+        isActive = false;
+      };
+    }
+
+    setNavigationAccess("checking");
+    fetchStaffMetrics(auth.user)
+      .then(() => {
+        if (isActive) {
+          setNavigationAccess("staff");
+        }
+      })
+      .catch(() => {
+        if (isActive) {
+          setNavigationAccess("youth");
+        }
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [auth.isSignedIn, auth.loading, auth.user]);
+
+  const route = useMemo(() => resolveRoute(currentPath), [currentPath]);
   const detail = pageDetails[route.path] || pageDetails["/"];
+  const hideRouteHeader = shouldHideRouteHeader(route.path);
 
   function navigate(path) {
     window.history.pushState({}, "", path);
@@ -217,7 +339,7 @@ function App() {
   }
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell access-${navigationAccess}`}>
       <aside className="sidebar" aria-label="Main navigation">
         <a className="brand" href="/" onClick={(event) => handleNavClick(event, "/", navigate)}>
           <span className="brand-mark">A</span>
@@ -229,35 +351,117 @@ function App() {
 
         <AuthStatus navigate={navigate} />
 
-        <nav className="nav-section">
-          <p>Youth</p>
-          {youthRoutes.map((item) => (
-            <NavLink key={item.path} item={item} currentPath={currentPath} navigate={navigate} />
-          ))}
-        </nav>
-
-        <nav className="nav-section">
-          <p>Staff/Admin</p>
-          {staffRoutes.map((item) => (
-            <NavLink key={item.path} item={item} currentPath={currentPath} navigate={navigate} />
-          ))}
-        </nav>
+        <AppNavigation access={navigationAccess} currentPath={currentPath} navigate={navigate} />
       </aside>
 
       <main className="main-panel">
-        <header className="topbar">
-          <div>
-            <span className="eyebrow">{detail.eyebrow}</span>
-            <h1>{route.title}</h1>
-          </div>
-          <div className="status-pill">{auth.isSignedIn ? "Signed In" : "Signed Out"}</div>
-        </header>
+        {!hideRouteHeader ? (
+          <header className="topbar">
+            <div>
+              <span className="eyebrow">{detail.eyebrow}</span>
+              <h1>{route.title}</h1>
+            </div>
+            <div className="status-pill">{auth.isSignedIn ? "Signed In" : "Signed Out"}</div>
+          </header>
+        ) : null}
 
-        <section className="workspace">
+        <section className={["/dashboard", "/journey", "/rwd-learning-center", "/credentials", "/credentials/:credentialId"].includes(route.path) ? "workspace youth-home-workspace" : "workspace"}>
           <RouteContent route={route} detail={detail} navigate={navigate} />
         </section>
       </main>
+
+      {navigationAccess === "youth" ? (
+        <MobileYouthNavigation currentPath={currentPath} navigate={navigate} />
+      ) : null}
     </div>
+  );
+}
+
+function MobileYouthNavigation({ currentPath, navigate }) {
+  return (
+    <nav className="mobile-youth-navigation" aria-label="Youth mobile navigation">
+      {youthMobileNavigation.map((item) => {
+        const isActive = currentPath === item.path;
+        return (
+          <a
+            className={isActive ? "mobile-youth-tab active" : "mobile-youth-tab"}
+            href={item.path}
+            aria-current={isActive ? "page" : undefined}
+            key={item.path}
+            onClick={(event) => handleNavClick(event, item.path, navigate)}
+          >
+            {item.label}
+          </a>
+        );
+      })}
+    </nav>
+  );
+}
+
+function AppNavigation({ access, currentPath, navigate }) {
+  if (access === "checking") {
+    return <div className="nav-access-state">Checking access...</div>;
+  }
+
+  if (access === "public") {
+    return (
+      <NavigationGroup
+        currentPath={currentPath}
+        label="Welcome"
+        navigate={navigate}
+        routes={publicRoutes}
+      />
+    );
+  }
+
+  if (access === "staff") {
+    return (
+      <div className="role-navigation" aria-label="Staff navigation">
+        <div className="role-navigation-label">Staff workspace</div>
+        {staffNavigationGroups.map((group) => (
+          <NavigationGroup
+            currentPath={currentPath}
+            key={group.label}
+            label={group.label}
+            navigate={navigate}
+            routes={group.routes}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="role-navigation" aria-label="Youth navigation">
+      <div className="role-navigation-label">My ASPN</div>
+      <NavigationGroup
+        currentPath={currentPath}
+        label="Journey"
+        navigate={navigate}
+        routes={youthPrimaryNavigation}
+      />
+      <NavigationGroup
+        currentPath={currentPath}
+        label="More"
+        navigate={navigate}
+        routes={youthSecondaryNavigation}
+      />
+    </div>
+  );
+}
+
+function NavigationGroup({ currentPath, label, navigate, routes }) {
+  if (!routes.length) {
+    return null;
+  }
+
+  return (
+    <nav className="nav-section" aria-label={label}>
+      <p>{label}</p>
+      {routes.map((item) => (
+        <NavLink key={item.path} item={item} currentPath={currentPath} navigate={navigate} />
+      ))}
+    </nav>
   );
 }
 
@@ -341,6 +545,10 @@ function RouteContent({ route, detail, navigate }) {
     return <YouthDashboard navigate={navigate} />;
   }
 
+  if (route.path === "/journey") {
+    return <MyJourneyPage navigate={navigate} />;
+  }
+
   if (route.path === "/profile") {
     return <ProfileCompletionPage navigate={navigate} />;
   }
@@ -350,7 +558,11 @@ function RouteContent({ route, detail, navigate }) {
   }
 
   if (route.path === "/credentials") {
-    return <CredentialsPage />;
+    return <CredentialsPage navigate={navigate} />;
+  }
+
+  if (route.path === "/credentials/:credentialId") {
+    return <CredentialDetailPage credentialId={route.credentialId} navigate={navigate} />;
   }
 
   if (route.path === "/rwd-learning-center") {
@@ -435,7 +647,7 @@ function AuthForm({ mode, navigate }) {
       } else {
         await auth.login(email, password);
       }
-      navigate("/dashboard");
+      navigate(isCreate ? "/profile" : "/dashboard");
     } catch (nextError) {
       setError(getAuthErrorMessage(nextError, isCreate));
     } finally {
@@ -449,7 +661,7 @@ function AuthForm({ mode, navigate }) {
       <h2>{isCreate ? "Create Account" : "Login"}</h2>
       <p>
         {isCreate
-          ? "Create a Firebase Authentication account for future ASPN platform access."
+          ? "Create your sign-in account, then complete your ASPN profile so Home has the right starting point."
           : "Sign in with a Firebase Authentication account."}
       </p>
 

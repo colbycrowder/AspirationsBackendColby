@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { fetchYouthDashboard, trackPlatformEvent } from "../api.js";
 import { useAuth } from "../auth/AuthContext.jsx";
+import { getUniqueEarnedCredentials } from "../utils/credentialDeduplication.js";
 
 export function YouthDashboard({ navigate }) {
   const { user } = useAuth();
@@ -41,262 +42,203 @@ export function YouthDashboard({ navigate }) {
   }, [user]);
 
   if (loading) {
-    return <DashboardState title="Loading dashboard" message="Retrieving your ASPN dashboard." />;
+    return <HomeState title="Loading Home" message="Retrieving your ASPN journey." />;
   }
 
   if (error) {
     return (
-      <DashboardState
-        title="Dashboard unavailable"
+      <HomeState
+        title="Home unavailable"
         message={error}
-        note="If this is a new Firebase account, ASPN may still need to create the matching Firestore profile document."
+        note="If this is a new Firebase account, complete your ASPN profile before returning Home."
+        actionLabel="Complete Profile"
+        onAction={() => navigate("/profile")}
       />
     );
   }
 
+  const profile = dashboard?.profileSummary || {};
+  const earnedCredentials = getUniqueEarnedCredentials(dashboard?.earnedCredentials);
+  const availableCredentials = asArray(dashboard?.availableCredentials);
+  const programs = asArray(dashboard?.programs);
+  const serviceHourRecords = asArray(dashboard?.serviceHourRecords);
+  const movementItems = asArray(dashboard?.rwdLearningCenter);
+  const opportunities = asArray(dashboard?.opportunities);
+  const profileCompletion = getProfileCompletion(profile);
+  const serviceHours = getApprovedServiceHours(serviceHourRecords);
+  const movementProgress = getMovementProgress(movementItems);
+  const actions = getNextActions({
+    availableCredentials,
+    earnedCredentials,
+    movementItems,
+    navigate,
+    profileCompletion,
+    programs,
+    serviceHourRecords,
+    unreadNotifications: Number(dashboard?.unreadNotificationCount || 0),
+  });
+
   return (
-    <div className="dashboard-stack">
-      <ProfileSummary profile={dashboard?.profileSummary} unreadCount={dashboard?.unreadNotificationCount} />
+    <div className="youth-home">
+      <WelcomeSection profile={profile} profileCompletion={profileCompletion} navigate={navigate} />
 
-      <GuidanceGrid dashboard={dashboard} navigate={navigate} />
+      <section className="home-progress-section" aria-labelledby="home-progress-title">
+        <div className="home-section-heading">
+          <div>
+            <span className="home-kicker">Your progress</span>
+            <h2 id="home-progress-title">Keep building your future</h2>
+          </div>
+        </div>
 
-      <DashboardSection title="Programs">
-        <ProgramList programs={dashboard?.programs} />
-      </DashboardSection>
+        <div className="home-progress-grid">
+          <ProgressCard
+            label="Credentials Earned"
+            value={earnedCredentials.length}
+            detail={earnedCredentials.length ? "View what you have accomplished." : "Complete your first activity to begin earning credentials."}
+            actionLabel="View credentials"
+            onAction={() => navigate("/credentials")}
+          />
+          <ProgressCard
+            label="Programs Active"
+            value={programs.length}
+            detail={programs.length ? "Continue participating in your active programs." : "Join an active program to begin participating."}
+            actionLabel="View programs"
+            onAction={() => navigate("/programs")}
+          />
+          <ProgressCard
+            label="Service Hours"
+            value={formatHours(serviceHours)}
+            detail={serviceHours ? "Approved service hours." : "No approved service hours yet."}
+            actionLabel="View service hours"
+            onAction={() => navigate("/service-hours")}
+          />
+          <ProgressCard
+            label="Global Civic Movements"
+            value={movementProgress.completed}
+            detail={movementItems.length
+              ? movementProgress.completed
+                ? `${movementProgress.remaining} activities remaining.`
+                : "Complete your first movement activity to begin."
+              : "No movement activities are available yet."}
+            actionLabel="Open Learning Center"
+            onAction={() => navigate("/rwd-learning-center")}
+          />
+        </div>
+      </section>
 
-      <DashboardSection title="Earned Credentials">
-        <CredentialList credentials={dashboard?.earnedCredentials} emptyText="No earned credentials yet." />
-      </DashboardSection>
+      <section className="home-section" aria-labelledby="continue-journey-title">
+        <div className="home-section-heading">
+          <div>
+            <span className="home-kicker">Next steps</span>
+            <h2 id="continue-journey-title">Continue Your Journey</h2>
+          </div>
+          <span className="home-section-count">{actions.length} actions</span>
+        </div>
 
-      <DashboardSection title="Available Credentials">
-        <CredentialList
-          credentials={dashboard?.availableCredentials}
-          emptyText="No available credentials for enrolled programs yet."
-          showRequirement
-        />
-      </DashboardSection>
-
-      <DashboardSection title="Attendance">
-        <RecordList
-          records={dashboard?.attendanceRecords}
-          emptyText="No attendance records yet."
-          renderRecord={(record) => (
-            <>
-              <strong>{record.eventName || "Attendance record"}</strong>
-              <span>{formatDate(record.eventDate)} · {record.attendanceStatus || "status unavailable"}</span>
-            </>
-          )}
-        />
-      </DashboardSection>
-
-      <DashboardSection title="Service Hours">
-        <RecordList
-          records={dashboard?.serviceHourRecords}
-          emptyText="No service-hour records yet."
-          renderRecord={(record) => (
-            <>
-              <strong>{record.description || "Service-hour record"}</strong>
-              <span>{formatDate(record.serviceDate)} · {record.hours ?? 0} hours · {record.verificationStatus || "pending"}</span>
-            </>
-          )}
-        />
-        {dashboard?.serviceHourRequestFormUrl ? (
-          <a className="inline-link" href={dashboard.serviceHourRequestFormUrl} target="_blank" rel="noreferrer">
-            Request service-hour verification
-          </a>
+        {actions.length ? (
+          <div className="home-action-list">
+            {actions.map((action) => (
+              <button className="home-action" key={`${action.path}-${action.label}`} type="button" onClick={action.onAction}>
+                <span>
+                  <strong>{action.label}</strong>
+                  <small>{action.detail}</small>
+                </span>
+                <span className="home-action-arrow" aria-hidden="true">→</span>
+              </button>
+            ))}
+          </div>
         ) : (
-          <p className="empty-text">Service-hour request link is not configured yet.</p>
+          <HomeEmptyState message="You are caught up for now. Check back for new activities and opportunities." />
         )}
-      </DashboardSection>
+      </section>
 
-      <DashboardSection title="RWD Learning Center">
-        <RecordList
-          records={dashboard?.rwdLearningCenter}
-          emptyText="No RWD activities are available yet."
-          renderRecord={(item) => (
-            <>
-              <strong>{item.title || item.countryName || "RWD activity"}</strong>
-              <span>{item.completionStatus || "not_started"} · {item.passed ? "passed" : "not passed"}</span>
-              {item.externalUrl ? (
-                <a className="inline-link" href={item.externalUrl} target="_blank" rel="noreferrer">
-                  Watch activity
-                </a>
-              ) : null}
-            </>
-          )}
-        />
-      </DashboardSection>
+      <div className="home-support-grid">
+        <section className="home-section" aria-labelledby="upcoming-activities-title">
+          <div className="home-section-heading">
+            <div>
+              <span className="home-kicker">Plan ahead</span>
+              <h2 id="upcoming-activities-title">Upcoming Activities</h2>
+            </div>
+          </div>
+          <HomeEmptyState message="No upcoming activities have been assigned yet." />
+        </section>
 
-      <DashboardSection title="Opportunities">
-        <RecordList
-          records={dashboard?.opportunities}
-          emptyText="No opportunity links are available yet."
-          renderRecord={(item) => (
-            <>
-              <strong>{item.title || "Opportunity"}</strong>
-              {item.url ? (
-                <a className="inline-link" href={item.url} target="_blank" rel="noreferrer">
-                  {item.url}
-                </a>
-              ) : (
-                <span>Link unavailable</span>
-              )}
-            </>
-          )}
-        />
-      </DashboardSection>
+        <section className="home-section" aria-labelledby="opportunities-title">
+          <div className="home-section-heading">
+            <div>
+              <span className="home-kicker">Explore</span>
+              <h2 id="opportunities-title">Opportunities</h2>
+            </div>
+          </div>
+          <OpportunitiesPreview opportunities={opportunities} />
+        </section>
+      </div>
     </div>
   );
 }
 
-function GuidanceGrid({ dashboard, navigate }) {
-  const profile = dashboard?.profileSummary || {};
-  const earnedCredentials = asArray(dashboard?.earnedCredentials);
-  const availableCredentials = asArray(dashboard?.availableCredentials);
-  const serviceHourRecords = asArray(dashboard?.serviceHourRecords);
-  const rwdItems = asArray(dashboard?.rwdLearningCenter);
-  const programs = asArray(dashboard?.programs);
-  const completion = getProfileCompletion(profile);
-  const serviceSummary = getServiceHourSummary(serviceHourRecords);
-  const rwdSummary = getRwdSummary(rwdItems);
+function WelcomeSection({ profile, profileCompletion, navigate }) {
+  const firstName = hasText(profile.firstName) ? profile.firstName.trim() : "";
+  const name = [profile.firstName, profile.lastName].filter(hasText).join(" ") || "Youth Profile";
+  const firstInitial = profile.firstInitial || name.charAt(0).toUpperCase() || "A";
 
   return (
-    <>
-      <section className="dashboard-guidance-grid" aria-label="Dashboard guidance">
-        <article className="guidance-card">
-          <div className="guidance-card-header">
-            <div>
-              <span className="eyebrow">Profile</span>
-              <h3>Profile Completion</h3>
-            </div>
-            <strong>{completion.percent}%</strong>
-          </div>
-          <div className="progress-track" aria-label={`Profile completion ${completion.percent} percent`}>
-            <span style={{ width: `${completion.percent}%` }} />
-          </div>
-          {completion.missing.length ? (
-            <p>Missing: {completion.missing.join(", ")}</p>
-          ) : (
-            <p>Your basic profile is ready for onboarding.</p>
-          )}
-          <button className="text-action" type="button" onClick={() => navigate("/profile")}>
-            Open Profile
-          </button>
-        </article>
-
-        <article className="guidance-card">
-          <span className="eyebrow">Next Actions</span>
-          <h3>Keep Moving</h3>
-          <div className="next-action-list">
-            {getNextActions({ completion, programs, rwdItems, serviceHourRecords, earnedCredentials }).map((action) => (
-              <button className="next-action-button" key={action.path} type="button" onClick={() => navigate(action.path)}>
-                <strong>{action.label}</strong>
-                <span>{action.note}</span>
-              </button>
-            ))}
-          </div>
-        </article>
-      </section>
-
-      <section className="dashboard-summary-grid" aria-label="Dashboard summary">
-        <SummaryTile label="Earned Credentials" value={earnedCredentials.length} />
-        <SummaryTile label="Available Credentials" value={availableCredentials.length} />
-        <SummaryTile label="Approved Hours" value={formatHours(serviceSummary.approved)} />
-        <SummaryTile label="Pending Hours" value={formatHours(serviceSummary.pending)} />
-        <SummaryTile label="RWD Complete" value={rwdSummary.completed} />
-        <SummaryTile label="RWD Remaining" value={rwdSummary.remaining} />
-        <SummaryTile label="Unread Notices" value={dashboard?.unreadNotificationCount ?? 0} />
-      </section>
-    </>
+    <section className="home-welcome">
+      <div className="home-avatar" aria-hidden="true">
+        {profile.profileImageUrl ? <img src={profile.profileImageUrl} alt="" /> : <span>{firstInitial}</span>}
+      </div>
+      <div className="home-welcome-copy">
+        <span className="home-kicker">Welcome back{firstName ? `, ${firstName}` : ""}</span>
+        <h1>Continue Building Your Future</h1>
+        <p>Your profile brings your learning, participation, credentials, and service together in one place.</p>
+        <div className="home-profile-details">
+          <span>{profile.school || "School not added"}</span>
+          <span>{profile.graduationYear || "Graduation year not added"}</span>
+          <span>{profile.aspnParticipantId || "ASPN ID pending"}</span>
+        </div>
+      </div>
+      {profileCompletion.percent < 100 ? (
+        <button className="home-primary-action" type="button" onClick={() => navigate("/profile")}>
+          Complete profile
+        </button>
+      ) : (
+        <button className="home-secondary-action" type="button" onClick={() => navigate("/profile")}>
+          View profile
+        </button>
+      )}
+    </section>
   );
 }
 
-function SummaryTile({ label, value }) {
+function ProgressCard({ actionLabel, detail, label, onAction, value }) {
   return (
-    <article className="summary-tile">
-      <strong>{value}</strong>
+    <article className="home-progress-card">
       <span>{label}</span>
+      <strong>{value}</strong>
+      <p>{detail}</p>
+      {onAction ? (
+        <button type="button" onClick={onAction}>{actionLabel}</button>
+      ) : (
+        <small>More pathway tools are coming later.</small>
+      )}
     </article>
   );
 }
 
-function ProfileSummary({ profile, unreadCount }) {
-  const name = [profile?.firstName, profile?.lastName].filter(Boolean).join(" ") || "Youth Profile";
-  const firstInitial = profile?.firstInitial || name.charAt(0).toUpperCase() || "A";
-
-  return (
-    <section className="dashboard-hero">
-      <div className="profile-avatar">
-        {profile?.profileImageUrl ? (
-          <img src={profile.profileImageUrl} alt="" />
-        ) : (
-          <span>{firstInitial}</span>
-        )}
-      </div>
-      <div>
-        <span className="eyebrow">Profile Summary</span>
-        <h2>{name}</h2>
-        <p>{profile?.email || "Email unavailable"}</p>
-        <div className="summary-chips">
-          <span>{profile?.profileStatus || "profile status unavailable"}</span>
-          <span>{profile?.aspnParticipantId || "ASPN ID pending"}</span>
-          <span>{profile?.school || "school not added"}</span>
-          <span>{profile?.graduationYear || "graduation year not added"}</span>
-          <span>{unreadCount ?? 0} unread notifications</span>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function DashboardSection({ title, children }) {
-  return (
-    <section className="dashboard-section">
-      <h3>{title}</h3>
-      {children}
-    </section>
-  );
-}
-
-function ProgramList({ programs }) {
-  const safePrograms = asArray(programs);
-
-  if (!safePrograms.length) {
-    return <p className="empty-text">No active enrolled programs yet.</p>;
+function OpportunitiesPreview({ opportunities }) {
+  if (!opportunities.length) {
+    return <HomeEmptyState message="No opportunities are available yet." />;
   }
 
   return (
-    <div className="dashboard-card-grid">
-      {safePrograms.map((program) => (
-        <article className="dashboard-card" key={program.programId || program.programName}>
-          <strong>{program.programName || "Program"}</strong>
-          <span>{program.category || "category unavailable"}</span>
-          <p>{program.description || "No program description yet."}</p>
-          <small>{program.programLeader || "Program leader unavailable"}</small>
-        </article>
-      ))}
-    </div>
-  );
-}
-
-function CredentialList({ credentials, emptyText, showRequirement = false }) {
-  const safeCredentials = asArray(credentials);
-
-  if (!safeCredentials.length) {
-    return <p className="empty-text">{emptyText}</p>;
-  }
-
-  return (
-    <div className="dashboard-card-grid">
-      {safeCredentials.map((credential) => (
-        <article className="dashboard-card" key={credential.earnedCredentialID || credential.credentialID}>
-          <strong>{credential.credentialName || "Credential"}</strong>
-          <span>{credential.category || "category unavailable"}</span>
-          <p>{credential.description || "No credential description yet."}</p>
-          {showRequirement ? (
-            <small>{credential.requirementText || credential.status || "Requirement details unavailable"}</small>
+    <div className="home-opportunity-list">
+      {opportunities.slice(0, 3).map((opportunity, index) => (
+        <article key={opportunity.url || opportunity.title || index}>
+          <strong>{opportunity.title || "Opportunity"}</strong>
+          {opportunity.url ? (
+            <a href={opportunity.url} target="_blank" rel="noreferrer">Explore opportunity (opens in new tab)</a>
           ) : (
-            <small>{formatDate(credential.awardedAt || credential.earnedAt)}</small>
+            <span>Link unavailable</span>
           )}
         </article>
       ))}
@@ -304,106 +246,65 @@ function CredentialList({ credentials, emptyText, showRequirement = false }) {
   );
 }
 
-function RecordList({ records, emptyText, renderRecord }) {
-  const safeRecords = asArray(records);
-
-  if (!safeRecords.length) {
-    return <p className="empty-text">{emptyText}</p>;
-  }
-
-  return (
-    <div className="record-list">
-      {safeRecords.map((record, index) => (
-        <article className="record-row" key={record.id || record.recordId || record.progressId || index}>
-          {renderRecord(record)}
-        </article>
-      ))}
-    </div>
-  );
+function HomeEmptyState({ message }) {
+  return <p className="home-empty-state">{message}</p>;
 }
 
 function getProfileCompletion(profile) {
-  const checks = [
-    { label: "first name", complete: hasText(profile.firstName) },
-    { label: "last name", complete: hasText(profile.lastName) },
-    { label: "email", complete: hasText(profile.email) },
-    { label: "school", complete: hasText(profile.school) },
-    { label: "graduation year", complete: hasText(profile.graduationYear) },
-  ];
-  const completed = checks.filter((check) => check.complete).length;
-  return {
-    missing: checks.filter((check) => !check.complete).map((check) => check.label),
-    percent: Math.round((completed / checks.length) * 100),
-  };
+  const checks = [profile.firstName, profile.lastName, profile.email, profile.school, profile.graduationYear];
+  const completed = checks.filter(hasText).length;
+  return { percent: Math.round((completed / checks.length) * 100) };
 }
 
-function getNextActions({ completion, programs, rwdItems, serviceHourRecords, earnedCredentials }) {
+function getNextActions({
+  availableCredentials,
+  earnedCredentials,
+  movementItems,
+  navigate,
+  profileCompletion,
+  programs,
+  serviceHourRecords,
+  unreadNotifications,
+}) {
   const actions = [];
+  const movementProgress = getMovementProgress(movementItems);
 
-  if (completion.percent < 100) {
-    actions.push({
-      label: "Complete profile",
-      note: "Add school and graduation year.",
-      path: "/profile",
-    });
+  if (profileCompletion.percent < 100) {
+    actions.push({ label: "Complete your profile", detail: "Add the information that helps ASPN support your journey.", path: "/profile" });
   }
-
   if (!programs.length) {
-    actions.push({
-      label: "Join a program",
-      note: "Enroll in an active ASPN program.",
-      path: "/programs",
-    });
+    actions.push({ label: "Join a program", detail: "Explore active ASPN programs and choose where to participate.", path: "/programs" });
   }
-
-  if (getRwdSummary(rwdItems).remaining > 0) {
-    actions.push({
-      label: "Start RWD activity",
-      note: "Open the RWD Learning Center.",
-      path: "/rwd-learning-center",
-    });
+  if (movementProgress.remaining > 0) {
+    actions.push({ label: "Continue Global Civic Movements", detail: `${movementProgress.remaining} activities are ready to explore.`, path: "/rwd-learning-center" });
   }
-
+  if (availableCredentials.length) {
+    actions.push({ label: "View available credentials", detail: `${availableCredentials.length} credentials connect to your active programs.`, path: "/credentials" });
+  } else if (earnedCredentials.length) {
+    actions.push({ label: "Review your credentials", detail: "See the credentials you have already earned.", path: "/credentials" });
+  }
   if (!serviceHourRecords.length) {
-    actions.push({
-      label: "Submit service hours",
-      note: "Use the current request link.",
-      path: "/service-hours",
-    });
+    actions.push({ label: "Submit service hours", detail: "Use the service-hour request process when you complete service.", path: "/service-hours" });
+  } else {
+    actions.push({ label: "Review service hours", detail: "Check the status of your submitted service-hour records.", path: "/service-hours" });
+  }
+  if (unreadNotifications > 0) {
+    actions.push({ label: "Read notifications", detail: `${unreadNotifications} unread ${unreadNotifications === 1 ? "notice" : "notices"} waiting for you.`, path: "/notifications" });
   }
 
-  actions.push({
-    label: "View credentials",
-    note: earnedCredentials.length ? "Review earned credentials." : "See available credentials.",
-    path: "/credentials",
-  });
-
-  return actions.slice(0, 5);
+  return actions.slice(0, 5).map((action) => ({ ...action, onAction: () => navigate(action.path) }));
 }
 
-function getServiceHourSummary(records) {
-  return records.reduce(
-    (summary, record) => {
-      const status = (record.verificationStatus || "pending").toLowerCase();
-      const hours = Number(record.hours || 0);
-      if (status === "verified") {
-        summary.approved += hours;
-      }
-      if (status === "pending") {
-        summary.pending += hours;
-      }
-      return summary;
-    },
-    { approved: 0, pending: 0 }
-  );
+function getApprovedServiceHours(records) {
+  return records.reduce((total, record) => {
+    const status = String(record.verificationStatus || "").toLowerCase();
+    return status === "verified" ? total + Number(record.hours || 0) : total;
+  }, 0);
 }
 
-function getRwdSummary(items) {
-  const completed = items.filter((item) => item?.progress?.completionStatus === "completed").length;
-  return {
-    completed,
-    remaining: Math.max(items.length - completed, 0),
-  };
+function getMovementProgress(items) {
+  const completed = items.filter((item) => item?.progress?.completionStatus === "completed" || item?.completionStatus === "completed").length;
+  return { completed, remaining: Math.max(items.length - completed, 0) };
 }
 
 function hasText(value) {
@@ -415,33 +316,21 @@ function formatHours(value) {
   return Number.isInteger(hours) ? String(hours) : hours.toFixed(1);
 }
 
-function DashboardState({ title, message, note }) {
+function HomeState({ actionLabel, message, note, onAction, title }) {
   return (
     <section className="state-panel">
       <h2>{title}</h2>
       <p>{message}</p>
       {note ? <p>{note}</p> : null}
+      {actionLabel && onAction ? (
+        <button className="primary-action" type="button" onClick={onAction}>
+          {actionLabel}
+        </button>
+      ) : null}
     </section>
   );
 }
 
 function asArray(value) {
   return Array.isArray(value) ? value : [];
-}
-
-function formatDate(value) {
-  if (!value) {
-    return "date unavailable";
-  }
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return String(value);
-  }
-
-  return date.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
 }

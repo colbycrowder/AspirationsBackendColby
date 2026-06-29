@@ -70,7 +70,7 @@ export function PilotReportingDashboard() {
       <section className="page-intro">
         <span className="eyebrow">Staff/Admin</span>
         <h2>Pilot Reporting Dashboard</h2>
-        <p>Read-only reporting for participation, retention, credentials, programs, and staff operations.</p>
+        <p>Use Reporting to answer cross-pilot questions about participation, retention, credentials, program outcomes, service, and staff operations in one read-only view.</p>
       </section>
 
       <section className="dashboard-section">

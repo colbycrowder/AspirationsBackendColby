@@ -36,7 +36,7 @@ public class UserInfoService {
         DocumentSnapshot document = future.get();
 
         if (document.exists()) {
-            return document.toObject(User.class);
+            return toUserWithDocumentId(document);
         }
         return null;
     }
@@ -89,17 +89,66 @@ public class UserInfoService {
 
         List<User> users = new ArrayList<>();
         for (QueryDocumentSnapshot document : future.get().getDocuments()) {
-            users.add(document.toObject(User.class));
+            users.add(toUserWithDocumentId(document));
         }
         return users;
     }
 
-    public User getYouthUserForStaff(String uid) throws ExecutionException, InterruptedException {
-        User user = getUser(uid);
+    public User getYouthUserForStaff(String identifier) throws ExecutionException, InterruptedException {
+        User user = getUser(identifier);
+        if (user == null) {
+            user = getYouthUserByField("aspnParticipantId", identifier);
+        }
+        if (user == null) {
+            user = getYouthUserByField("email", identifier);
+        }
         if (user == null || !user.isYouthProfile()) {
             return null;
         }
         return user;
+    }
+
+    public String resolveYouthUserUidForStaff(String identifier) throws ExecutionException, InterruptedException {
+        requireText(identifier, "youth identifier is required");
+        User user = getYouthUserForStaff(identifier);
+        if (user == null || user.getUid() == null || user.getUid().isBlank()) {
+            throw new IllegalArgumentException("Youth profile does not exist for the provided identifier");
+        }
+        return user.getUid();
+    }
+
+    public List<User> getPossibleDuplicateYouthProfilesForStaff(String identifier)
+            throws ExecutionException, InterruptedException {
+        User selectedUser = getYouthUserForStaff(identifier);
+        if (selectedUser == null) {
+            return List.of();
+        }
+
+        String selectedUid = selectedUser.getUid();
+        String selectedParticipantId = normalizeText(selectedUser.getAspnParticipantId());
+        String selectedEmail = normalizeEmail(selectedUser.getEmail());
+        if (selectedParticipantId.isBlank() && selectedEmail.isBlank()) {
+            return List.of();
+        }
+
+        List<User> duplicates = new ArrayList<>();
+        for (User candidate : getYouthUsersForStaff()) {
+            if (candidate == null) {
+                continue;
+            }
+            String candidateUid = candidate.getUid();
+            if (!normalizeText(selectedUid).isBlank() && selectedUid.equals(candidateUid)) {
+                continue;
+            }
+            boolean participantIdMatches = !selectedParticipantId.isBlank()
+                    && selectedParticipantId.equals(normalizeText(candidate.getAspnParticipantId()));
+            boolean emailMatches = !selectedEmail.isBlank()
+                    && selectedEmail.equals(normalizeEmail(candidate.getEmail()));
+            if (participantIdMatches || emailMatches) {
+                duplicates.add(candidate);
+            }
+        }
+        return duplicates;
     }
 
     public List<User> getUsersForStaff(String role, Boolean active, Boolean youthProfile, String programId)
@@ -108,7 +157,7 @@ public class UserInfoService {
 
         List<User> users = new ArrayList<>();
         for (QueryDocumentSnapshot document : future.get().getDocuments()) {
-            User user = document.toObject(User.class);
+            User user = toUserWithDocumentId(document);
             if (user != null && matchesStaffUserFilters(user, role, active, youthProfile, programId)) {
                 users.add(user);
             }
@@ -119,6 +168,40 @@ public class UserInfoService {
     public User getUserForStaff(String uid) throws ExecutionException, InterruptedException {
         requireText(uid, "uid is required");
         return getUser(uid);
+    }
+
+    private User getYouthUserByField(String fieldName, String value) throws ExecutionException, InterruptedException {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+
+        ApiFuture<QuerySnapshot> future = firestore.collection(COLLECTION_NAME)
+                .whereEqualTo(fieldName, value)
+                .get();
+
+        for (QueryDocumentSnapshot document : future.get().getDocuments()) {
+            User user = toUserWithDocumentId(document);
+            if (user != null && user.isYouthProfile()) {
+                return user;
+            }
+        }
+        return null;
+    }
+
+    private User toUserWithDocumentId(DocumentSnapshot document) {
+        User user = document.toObject(User.class);
+        if (user != null && (user.getUid() == null || user.getUid().isBlank())) {
+            user.setUid(document.getId());
+        }
+        return user;
+    }
+
+    private String normalizeText(String value) {
+        return value == null ? "" : value.trim();
+    }
+
+    private String normalizeEmail(String value) {
+        return normalizeText(value).toLowerCase();
     }
 
     public UserTotalsDTO getUserTotalsForStaff() throws ExecutionException, InterruptedException {

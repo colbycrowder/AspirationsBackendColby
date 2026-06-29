@@ -8,6 +8,7 @@ import com.google.cloud.firestore.CollectionReference;
 import com.google.cloud.firestore.DocumentReference;
 import com.google.cloud.firestore.DocumentSnapshot;
 import com.google.cloud.firestore.Firestore;
+import com.google.cloud.firestore.Query;
 import com.google.cloud.firestore.QueryDocumentSnapshot;
 import com.google.cloud.firestore.QuerySnapshot;
 import com.google.cloud.firestore.WriteResult;
@@ -76,6 +77,104 @@ class AttendanceServiceTest {
         assertEquals("present", savedRecord.getAttendanceStatus());
         assertEquals("staff-123", savedRecord.getStaffRecorderUID());
         verify(credentialService).evaluateAttendanceAutoAwards("youth-123", "program-123", "staff-123");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void createAttendanceRecordResolvesAspnParticipantIdBeforeStoringRecord() throws Exception {
+        Firestore firestore = mock(Firestore.class);
+        CollectionReference attendanceCollection = mock(CollectionReference.class);
+        CollectionReference usersCollection = mock(CollectionReference.class);
+        Query participantQuery = mock(Query.class);
+        DocumentReference attendanceDocument = mock(DocumentReference.class);
+        DocumentReference userDocument = mock(DocumentReference.class);
+        QueryDocumentSnapshot youthDocument = mock(QueryDocumentSnapshot.class);
+        QuerySnapshot participantSnapshot = mock(QuerySnapshot.class);
+        CredentialService credentialService = mock(CredentialService.class);
+        ApiFuture<QuerySnapshot> participantFuture = mock(ApiFuture.class);
+        ApiFuture<WriteResult> writeFuture = mock(ApiFuture.class);
+        ApiFuture<WriteResult> updateFuture = mock(ApiFuture.class);
+
+        when(firestore.collection(AttendanceService.COLLECTION_NAME)).thenReturn(attendanceCollection);
+        when(firestore.collection(UserInfoService.COLLECTION_NAME)).thenReturn(usersCollection);
+        when(usersCollection.whereEqualTo("aspnParticipantId", "ASPN-2026-0001")).thenReturn(participantQuery);
+        when(participantQuery.get()).thenReturn(participantFuture);
+        when(participantFuture.get()).thenReturn(participantSnapshot);
+        when(participantSnapshot.isEmpty()).thenReturn(false);
+        when(participantSnapshot.getDocuments()).thenReturn(List.of(youthDocument));
+        when(youthDocument.getId()).thenReturn("firebase-youth-123");
+        when(attendanceCollection.document(any(String.class))).thenReturn(attendanceDocument);
+        when(usersCollection.document("firebase-youth-123")).thenReturn(userDocument);
+        when(attendanceDocument.set(any(AttendanceRecord.class))).thenReturn(writeFuture);
+        when(userDocument.update(eq("attendanceRecordIds"), any())).thenReturn(updateFuture);
+        when(writeFuture.get()).thenReturn(mock(WriteResult.class));
+        when(updateFuture.get()).thenReturn(mock(WriteResult.class));
+
+        AttendanceRecordCreationDTO dto = new AttendanceRecordCreationDTO();
+        dto.setUserIdentifier("ASPN-2026-0001");
+        dto.setProgramID("program-123");
+        dto.setEventName("September Onboarding");
+        dto.setAttendanceStatus("present");
+        dto.setStaffRecorderUID("staff-123");
+
+        AttendanceService service = new AttendanceService(firestore, credentialService);
+        service.createAttendanceRecord(dto);
+
+        ArgumentCaptor<AttendanceRecord> recordCaptor = ArgumentCaptor.forClass(AttendanceRecord.class);
+        verify(attendanceDocument).set(recordCaptor.capture());
+
+        assertEquals("firebase-youth-123", recordCaptor.getValue().getUserUID());
+        verify(userDocument).update(eq("attendanceRecordIds"), any());
+        verify(credentialService).evaluateAttendanceAutoAwards("firebase-youth-123", "program-123", "staff-123");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void createAttendanceRecordResolvesEmailBeforeStoringRecord() throws Exception {
+        Firestore firestore = mock(Firestore.class);
+        CollectionReference attendanceCollection = mock(CollectionReference.class);
+        CollectionReference usersCollection = mock(CollectionReference.class);
+        Query emailQuery = mock(Query.class);
+        DocumentReference attendanceDocument = mock(DocumentReference.class);
+        DocumentReference userDocument = mock(DocumentReference.class);
+        QueryDocumentSnapshot youthDocument = mock(QueryDocumentSnapshot.class);
+        QuerySnapshot emailSnapshot = mock(QuerySnapshot.class);
+        CredentialService credentialService = mock(CredentialService.class);
+        ApiFuture<QuerySnapshot> emailFuture = mock(ApiFuture.class);
+        ApiFuture<WriteResult> writeFuture = mock(ApiFuture.class);
+        ApiFuture<WriteResult> updateFuture = mock(ApiFuture.class);
+
+        when(firestore.collection(AttendanceService.COLLECTION_NAME)).thenReturn(attendanceCollection);
+        when(firestore.collection(UserInfoService.COLLECTION_NAME)).thenReturn(usersCollection);
+        when(usersCollection.whereEqualTo("email", "colbycrowderc@gmail.com")).thenReturn(emailQuery);
+        when(emailQuery.get()).thenReturn(emailFuture);
+        when(emailFuture.get()).thenReturn(emailSnapshot);
+        when(emailSnapshot.isEmpty()).thenReturn(false);
+        when(emailSnapshot.getDocuments()).thenReturn(List.of(youthDocument));
+        when(youthDocument.getId()).thenReturn("firebase-youth-123");
+        when(attendanceCollection.document(any(String.class))).thenReturn(attendanceDocument);
+        when(usersCollection.document("firebase-youth-123")).thenReturn(userDocument);
+        when(attendanceDocument.set(any(AttendanceRecord.class))).thenReturn(writeFuture);
+        when(userDocument.update(eq("attendanceRecordIds"), any())).thenReturn(updateFuture);
+        when(writeFuture.get()).thenReturn(mock(WriteResult.class));
+        when(updateFuture.get()).thenReturn(mock(WriteResult.class));
+
+        AttendanceRecordCreationDTO dto = new AttendanceRecordCreationDTO();
+        dto.setUserIdentifier("colbycrowderc@gmail.com");
+        dto.setProgramID("program-123");
+        dto.setEventName("YAB Meeting Test 3");
+        dto.setAttendanceStatus("present");
+        dto.setStaffRecorderUID("staff-123");
+
+        AttendanceService service = new AttendanceService(firestore, credentialService);
+        service.createAttendanceRecord(dto);
+
+        ArgumentCaptor<AttendanceRecord> recordCaptor = ArgumentCaptor.forClass(AttendanceRecord.class);
+        verify(attendanceDocument).set(recordCaptor.capture());
+
+        assertEquals("firebase-youth-123", recordCaptor.getValue().getUserUID());
+        verify(userDocument).update(eq("attendanceRecordIds"), any());
+        verify(credentialService).evaluateAttendanceAutoAwards("firebase-youth-123", "program-123", "staff-123");
     }
 
     @Test

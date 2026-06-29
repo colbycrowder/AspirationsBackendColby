@@ -87,7 +87,7 @@ export function PilotEvaluationDashboard() {
       <section className="page-intro">
         <span className="eyebrow">Staff/Admin</span>
         <h2>Pilot Evaluation Dashboard</h2>
-        <p>Outcome-oriented pilot performance summary. This is descriptive evaluation support, not causal analysis.</p>
+        <p>Use Pilot Evaluation to interpret pilot effectiveness, outcome scores, strengths, concerns, and recommended actions. This is descriptive evaluation support, not causal analysis.</p>
       </section>
 
       <section className="dashboard-section">

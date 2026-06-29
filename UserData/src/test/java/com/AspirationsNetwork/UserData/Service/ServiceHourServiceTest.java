@@ -8,6 +8,7 @@ import com.google.cloud.firestore.CollectionReference;
 import com.google.cloud.firestore.DocumentReference;
 import com.google.cloud.firestore.DocumentSnapshot;
 import com.google.cloud.firestore.Firestore;
+import com.google.cloud.firestore.Query;
 import com.google.cloud.firestore.QueryDocumentSnapshot;
 import com.google.cloud.firestore.QuerySnapshot;
 import com.google.cloud.firestore.WriteResult;
@@ -78,6 +79,54 @@ class ServiceHourServiceTest {
         assertEquals("staff_review", savedRecord.getVerificationSource());
         assertEquals("future-form-response-placeholder", savedRecord.getGoogleFormResponseUrl());
         assertEquals("staff-123", savedRecord.getReviewedByStaffUID());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void createOrReviewServiceHourRecordResolvesAspnParticipantIdBeforeStoringRecord() throws Exception {
+        Firestore firestore = mock(Firestore.class);
+        CollectionReference serviceHoursCollection = mock(CollectionReference.class);
+        CollectionReference usersCollection = mock(CollectionReference.class);
+        Query participantQuery = mock(Query.class);
+        DocumentReference serviceHourDocument = mock(DocumentReference.class);
+        DocumentReference userDocument = mock(DocumentReference.class);
+        QueryDocumentSnapshot youthDocument = mock(QueryDocumentSnapshot.class);
+        QuerySnapshot participantSnapshot = mock(QuerySnapshot.class);
+        ApiFuture<QuerySnapshot> participantFuture = mock(ApiFuture.class);
+        ApiFuture<WriteResult> writeFuture = mock(ApiFuture.class);
+        ApiFuture<WriteResult> updateFuture = mock(ApiFuture.class);
+
+        when(firestore.collection(ServiceHourService.COLLECTION_NAME)).thenReturn(serviceHoursCollection);
+        when(firestore.collection(UserInfoService.COLLECTION_NAME)).thenReturn(usersCollection);
+        when(usersCollection.whereEqualTo("aspnParticipantId", "ASPN-2026-0001")).thenReturn(participantQuery);
+        when(participantQuery.get()).thenReturn(participantFuture);
+        when(participantFuture.get()).thenReturn(participantSnapshot);
+        when(participantSnapshot.isEmpty()).thenReturn(false);
+        when(participantSnapshot.getDocuments()).thenReturn(List.of(youthDocument));
+        when(youthDocument.getId()).thenReturn("firebase-youth-123");
+        when(serviceHoursCollection.document(any(String.class))).thenReturn(serviceHourDocument);
+        when(usersCollection.document("firebase-youth-123")).thenReturn(userDocument);
+        when(serviceHourDocument.set(any(ServiceHourRecord.class))).thenReturn(writeFuture);
+        when(userDocument.update(eq("serviceHourRecordIds"), any())).thenReturn(updateFuture);
+        when(writeFuture.get()).thenReturn(mock(WriteResult.class));
+        when(updateFuture.get()).thenReturn(mock(WriteResult.class));
+
+        ServiceHourRecordDTO dto = new ServiceHourRecordDTO();
+        dto.setUserIdentifier("ASPN-2026-0001");
+        dto.setProgramId("program-123");
+        dto.setHours(2.5);
+        dto.setDescription("Community event support");
+        dto.setVerificationStatus("verified");
+        dto.setReviewedByStaffUID("staff-123");
+
+        ServiceHourService service = new ServiceHourService(firestore);
+        service.createOrReviewServiceHourRecord(dto);
+
+        ArgumentCaptor<ServiceHourRecord> recordCaptor = ArgumentCaptor.forClass(ServiceHourRecord.class);
+        verify(serviceHourDocument).set(recordCaptor.capture());
+
+        assertEquals("firebase-youth-123", recordCaptor.getValue().getUserUID());
+        verify(userDocument).update(eq("serviceHourRecordIds"), any());
     }
 
     @Test
